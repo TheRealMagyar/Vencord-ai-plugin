@@ -65,6 +65,13 @@ export async function clearThread(channelId: string) {
     await DataStore.set(KEY, file);
 }
 
+export async function listThreads(): Promise<StoredThread[]> {
+    const file = await readFile();
+    return Object.values(file.threads)
+        .filter(thread => thread.messages?.length)
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
 export function persistableMessages(messages: ChatMessage[]) {
     return messages
         .filter(msg => !msg.pending)

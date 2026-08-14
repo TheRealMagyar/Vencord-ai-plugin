@@ -10,10 +10,10 @@ import { ChannelStore, Modal, openModal, Parser, SelectedChannelStore, useEffect
 
 import { packChannelContext, withTranscript } from "./channelContext";
 import { GrokIcon } from "./GrokIcon";
-import { clearThread, getThreadTitle, loadThread } from "./history";
-import { cancelLiveJob, getLiveJob, isChannelBusy, mergeLiveMessages, runLiveChat, subscribeLiveJob } from "./liveChat";
+import { clearThread, getThreadTitle, listThreads, loadThread } from "./history";
+import { cancelLiveJob, getLiveJob, interruptLiveJob, isChannelBusy, listLiveJobs, mergeLiveMessages, runLiveChat, subscribeAllJobs, subscribeLiveJob } from "./liveChat";
 import { settings } from "./settings";
-import type { ChatMessage, ChatToolStep, GrokStatus } from "./types";
+import type { ChatMessage, ChatToolStep, GrokStatus, StoredThread } from "./types";
 import { resolveLang } from "./i18n";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
@@ -77,6 +77,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const sessionsRef = useRef<Partial<Record<"grok" | "codex", string | null>>>({});
     const [channelId, setChannelId] = useState("");
     const [threadTitle, setThreadTitle] = useState("Grok");
+    const [threads, setThreads] = useState<StoredThread[]>([]);
     const scroller = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const stickToBottom = useRef(true);
@@ -128,6 +129,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 }
             }
             applyLiveView(id, storedRef.current);
+            await refreshThreads();
 
             if (!Native) {
                 setStatus({
@@ -214,12 +216,32 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         })();
     }, []);
 
+    async function refreshThreads() {
+        const stored = await listThreads();
+        const extra = listLiveJobs()
+            .filter(job => job.channelId && !stored.some(thread => thread.channelId === job.channelId))
+            .map(job => ({
+                channelId: job.channelId,
+                title: job.title,
+                sessionId: job.sessionId,
+                messages: [job.userMessage],
+                updatedAt: Date.now(),
+            } satisfies StoredThread));
+        setThreads([...extra, ...stored]);
+    }
+
     function applyLiveView(id = channelId, stored = storedRef.current) {
         const live = getLiveJob(id);
         setBusy(Boolean(live));
         if (live?.sessionId) setSessionId(live.sessionId);
         setMessages(mergeLiveMessages(stored, live));
     }
+
+    useEffect(() => {
+        return subscribeAllJobs(() => {
+            void refreshThreads();
+        });
+    }, []);
 
     useEffect(() => {
         return subscribeLiveJob(channelId, () => {
@@ -275,6 +297,30 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 setSessionId(stored?.sessions?.[activeProvider] ?? stored?.sessionId ?? null);
         }
         applyLiveView(ctxId, storedRef.current);
+        await refreshThreads();
+        window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+
+    async function onInterrupt() {
+        await interruptLiveJob(channelId);
+        if (channelId) {
+            const stored = await loadThread(channelId);
+            storedRef.current = stored?.messages ?? [];
+        }
+        applyLiveView(channelId, storedRef.current);
+        await refreshThreads();
+        window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+
+    async function switchThread(nextId: string) {
+        if (nextId === channelId) return;
+        const stored = nextId ? await loadThread(nextId) : null;
+        storedRef.current = stored?.messages ?? [];
+        sessionsRef.current = stored?.sessions ?? {};
+        setChannelId(nextId);
+        setThreadTitle(stored?.title || getThreadTitle(nextId));
+        setSessionId(stored?.sessions?.[activeProvider] ?? stored?.sessionId ?? getLiveJob(nextId)?.sessionId ?? null);
+        applyLiveView(nextId, storedRef.current);
         window.setTimeout(() => inputRef.current?.focus(), 0);
     }
 
@@ -322,6 +368,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         setMessages([]);
         setSessionId(null);
         setBusy(false);
+        await refreshThreads();
     }
 
     const connected = Boolean(status?.installed && status.authenticated);
@@ -330,7 +377,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     return (
         <Modal
             {...rootProps}
-            size="lg"
+            size="xl"
             title={title}
             subtitle={
                 <span className={cl("status")}>
@@ -347,6 +394,28 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     e.stopPropagation();
                 }}
             >
+                <aside className={cl("sidebar")}>
+                    <div className={cl("sidebar-title")}>{t("chatsLabel")}</div>
+                    <div className={cl("sidebar-list")}>
+                        {threads.length === 0 && (
+                            <div className={cl("sidebar-empty")}>{t("noChats")}</div>
+                        )}
+                        {threads.map(thread => (
+                            <button
+                                key={thread.channelId}
+                                className={cl("thread", {
+                                    active: thread.channelId === channelId,
+                                    live: isChannelBusy(thread.channelId),
+                                })}
+                                onClick={() => switchThread(thread.channelId)}
+                            >
+                                <span className={cl("thread-name")}>{thread.title || getThreadTitle(thread.channelId)}</span>
+                                {isChannelBusy(thread.channelId) && <span className={cl("live-dot")} />}
+                            </button>
+                        ))}
+                    </div>
+                </aside>
+                <div className={cl("main")}>
                 <div className={cl("toolbar")}>
                     <span className={cl("toolbar-label")}>
                         {t("historyLabel")} {threadTitle}
@@ -436,7 +505,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     })}
                 </div>
 
-                <div className={cl("composer", { disabled: busy || !connected })}>
+                <div className={cl("composer", { disabled: !busy && !connected })}>
                     <textarea
                         ref={inputRef}
                         className={cl("input")}
@@ -452,9 +521,18 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             onSend();
                         }}
                     />
-                    <button className={cl("send")} disabled={busy || !connected || !input.trim()} onClick={onSend}>
-                        {busy ? t("wait") : t("send")}
-                    </button>
+                    {busy
+                        ? (
+                            <button className={cl("send", "stop")} onClick={onInterrupt}>
+                                {t("stop")}
+                            </button>
+                        )
+                        : (
+                            <button className={cl("send")} disabled={!connected || !input.trim()} onClick={onSend}>
+                                {t("send")}
+                            </button>
+                        )}
+                </div>
                 </div>
             </div>
         </Modal>

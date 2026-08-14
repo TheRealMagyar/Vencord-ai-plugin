@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { execFile, spawn } from "child_process";
+import { ChildProcess, execFile, spawn } from "child_process";
 import { shell } from "electron";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
 import { homedir, tmpdir } from "os";
@@ -21,6 +21,16 @@ const JOB_TTL_MS = 60_000;
 const MAX_THOUGHT = 6_000;
 
 const jobs = new Map<string, ChatProgress>();
+const processes = new Map<string, ChildProcess>();
+
+function trackProcess(jobId: string, child: ChildProcess) {
+    processes.set(jobId, child);
+    const drop = () => {
+        if (processes.get(jobId) === child) processes.delete(jobId);
+    };
+    child.on("close", drop);
+    child.on("error", drop);
+}
 
 function newJob(jobId?: string): ChatProgress {
     const id = jobId?.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -654,6 +664,7 @@ function spawnGrok(grokPath: string, args: string[], opts: { allowFetch: boolean
                 RUST_LOG: "off",
             },
         });
+        trackProcess(opts.progress.jobId, child);
 
         let stdout = "";
         let stderr = "";
@@ -903,6 +914,7 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
                 RUST_LOG: "off",
             },
         });
+        trackProcess(progress.jobId, child);
 
         let stdout = "";
         let stderr = "";
@@ -965,6 +977,23 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
 
 export async function getChatProgress(_event: unknown, jobId: string): Promise<ChatProgress | null> {
     return jobs.get(jobId) ?? null;
+}
+
+export async function cancelChat(_event: unknown, jobId: string): Promise<boolean> {
+    const child = processes.get(jobId);
+    const progress = jobs.get(jobId);
+    if (progress && progress.status === "running") {
+        progress.status = "error";
+        progress.error = "cancelled";
+    }
+    if (!child) return false;
+    try {
+        child.kill();
+    } catch {
+        return false;
+    }
+    processes.delete(jobId);
+    return true;
 }
 
 export async function sendChat(_event: unknown, request: ChatRequest): Promise<GrokReply> {

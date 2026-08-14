@@ -23,6 +23,7 @@ type Listener = () => void;
 
 const jobs = new Map<string, LiveJob>();
 const listeners = new Map<string, Set<Listener>>();
+const allListeners = new Set<Listener>();
 
 function jobKey(channelId: string) {
     return channelId || "__none__";
@@ -30,8 +31,16 @@ function jobKey(channelId: string) {
 
 function emit(channelId: string) {
     const set = listeners.get(jobKey(channelId));
-    if (!set) return;
-    for (const fn of set) {
+    if (set) {
+        for (const fn of set) {
+            try {
+                fn();
+            } catch {
+                // ignore subscriber errors
+            }
+        }
+    }
+    for (const fn of allListeners) {
         try {
             fn();
         } catch {
@@ -65,6 +74,17 @@ export function isChannelBusy(channelId: string) {
     return Boolean(job && !job.cancelled);
 }
 
+export function subscribeAllJobs(fn: Listener) {
+    allListeners.add(fn);
+    return () => {
+        allListeners.delete(fn);
+    };
+}
+
+export function listLiveJobs() {
+    return [...jobs.values()].filter(job => !job.cancelled);
+}
+
 export function subscribeLiveJob(channelId: string, fn: Listener) {
     const key = jobKey(channelId);
     let set = listeners.get(key);
@@ -89,6 +109,30 @@ export function cancelLiveJob(channelId: string) {
     const job = jobs.get(jobKey(channelId));
     if (!job) return;
     job.cancelled = true;
+    const Native = getNative();
+    void Native?.cancelChat?.(job.jobId).catch(() => { /* ignore */ });
+    jobs.delete(jobKey(channelId));
+    emit(channelId);
+}
+
+export async function interruptLiveJob(channelId: string) {
+    const job = jobs.get(jobKey(channelId));
+    if (!job || job.cancelled) return;
+    job.cancelled = true;
+    const Native = getNative();
+    try {
+        await Native?.cancelChat?.(job.jobId);
+    } catch {
+        // process may already have exited
+    }
+    const partial = job.assistantMessage.text.trim();
+    job.assistantMessage = {
+        ...job.assistantMessage,
+        pending: false,
+        at: Date.now(),
+        text: partial || t("interrupted"),
+    };
+    await persistJob(job, true);
     jobs.delete(jobKey(channelId));
     emit(channelId);
 }
@@ -180,8 +224,8 @@ export async function runLiveChat(opts: {
     return true;
 }
 
-async function persistJob(job: LiveJob) {
-    if (!job.channelId || job.cancelled) return;
+async function persistJob(job: LiveJob, allowCancelled = false) {
+    if (!job.channelId || (job.cancelled && !allowCancelled)) return;
 
     const stored = await loadThread(job.channelId);
     const sessions = { ...(stored?.sessions ?? {}), [job.provider]: job.sessionId };

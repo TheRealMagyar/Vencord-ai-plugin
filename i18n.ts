@@ -165,6 +165,30 @@ const dict = {
         de: "Senden",
         es: "Enviar",
     },
+    stop: {
+        en: "Stop",
+        hu: "Leállítás",
+        de: "Stopp",
+        es: "Detener",
+    },
+    interrupted: {
+        en: "Stopped.",
+        hu: "Leállítva.",
+        de: "Gestoppt.",
+        es: "Detenido.",
+    },
+    chatsLabel: {
+        en: "Chats",
+        hu: "Chatek",
+        de: "Chats",
+        es: "Chats",
+    },
+    noChats: {
+        en: "No saved chats yet.",
+        hu: "Még nincs mentett chat.",
+        de: "Noch keine gespeicherten Chats.",
+        es: "Aún no hay chats guardados.",
+    },
     openAi: {
         en: "Open AI",
         hu: "AI megnyitása",

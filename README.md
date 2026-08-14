@@ -16,7 +16,7 @@ Works on **Discord Desktop** and **Vesktop**. It does **not** run in Vencord Web
 | Channel header | AI button next to search / pins (works when you cannot type) |
 | Messages | Hover actions and right-click: **Explain with AI**, **Fact-check with AI** |
 | Commands | `/ai` (optional question), `/aiupdate` |
-| History | Conversation saved per Discord channel / DM |
+| History | Conversation saved per Discord channel / DM, listed in the chat sidebar |
 | Context | Optional transcript so the AI can summarize, explain, or fact-check with nearby messages |
 | Thinking | Optional live view of reasoning and tool use (Grok and Codex) |
 | Providers | Grok CLI or Codex CLI, switched in settings |
@@ -218,7 +218,7 @@ Older clones may still live in `src\userplugins\grokAi`. The updater looks for b
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Update the plugin | `/aiupdate` |
 
-The chat window keeps history **per Discord channel or DM**. Clearing history in the modal only clears that thread. Closing the window does not stop a running reply — reopen it to see thinking and tool progress.
+The chat window keeps history **per Discord channel or DM**. Clearing history in the modal only clears that thread. Closing the window does not stop a running reply — reopen it to see thinking and tool progress. **Stop** interrupts the current run. The left sidebar lists channels / DMs that already have AI history.
 
 Turn on **Show thinking** (settings or the toolbar toggle) to watch Grok / Codex reason and use tools such as web search while they work. The final answer stays separate from that trace.
 
