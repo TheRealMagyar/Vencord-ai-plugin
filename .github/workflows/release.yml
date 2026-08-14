@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: plugins.json
+          body: |
+            AI-Plugin ${{ github.ref_name }}
+
+            Local Grok (xAI) or Codex (OpenAI / ChatGPT) inside Discord.
+
+            **Install (cmd.exe)**
+
+            ```bat
+            npm.cmd install -g @kamaras/venpm
+            venpm config set vencord.path %USERPROFILE%\Equicord
+            venpm repo add https://github.com/TheRealMagyar/Vencord-ai-plugin/releases/latest/download/plugins.json --name ai-plugin
+            venpm install AI-Plugin
+            ```
+
+            Restart Discord after install or update.

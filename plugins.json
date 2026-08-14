@@ -15,6 +15,11 @@
       "license": "GPL-3.0-or-later",
       "source": {
         "git": "https://github.com/TheRealMagyar/Vencord-ai-plugin.git"
+      },
+      "versions": {
+        "1.0.0": {
+          "git_tag": "v1.0.0"
+        }
       }
     }
   }
