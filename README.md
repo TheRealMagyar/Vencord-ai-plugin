@@ -31,7 +31,7 @@ Works on **Discord Desktop** and **Vesktop**. It does not run in Vencord Web.
 | Grok | [Grok CLI](https://x.ai/cli) and `grok login` (SuperGrok / X Premium+) |
 | Codex | ChatGPT / Codex desktop app or `npm i -g @openai/codex`, then `codex login` |
 
-Verify Grok:
+Verify Grok (PowerShell):
 
 ```powershell
 irm https://x.ai/cli/install.ps1 | iex
@@ -49,11 +49,13 @@ You also need an Equicord or Vencord **source tree**. The installer `.asar` cann
 
 ## Install
 
-### venpm (recommended)
+Use **cmd.exe**. Do not paste `$env:USERPROFILE` into cmd — that is PowerShell. venpm would save the `$env:...` text as the path and `git clone` would fail.
 
-[venpm](https://venpm.dev) installs the plugin into your Equicord / Vencord source tree and rebuilds. Index format: [Your First Plugin](https://venpm.dev/author/your-first-plugin.html).
+### venpm
 
-In **cmd.exe** (`%USERPROFILE%` expands). Do not paste `$env:USERPROFILE` into cmd — venpm will save that text as the path and `git clone` will fail.
+[venpm](https://venpm.dev) clones the plugin into `src\userplugins\AI-Plugin` and rebuilds. Index: [Your First Plugin](https://venpm.dev/author/your-first-plugin.html).
+
+Close Discord. Then:
 
 ```bat
 npm.cmd install -g @kamaras/venpm
@@ -63,72 +65,40 @@ venpm repo add https://github.com/TheRealMagyar/Vencord-ai-plugin/releases/lates
 venpm install AI-Plugin
 ```
 
-If the source tree is under Documents:
+If your tree is under Documents instead:
 
 ```bat
 venpm config set vencord.path %USERPROFILE%\Documents\GitHub\Equicord
 ```
 
-PowerShell instead of cmd:
+Vencord instead of Equicord: point `vencord.path` at that folder.
 
-```powershell
-venpm config set vencord.path "$env:USERPROFILE\Equicord"
-```
+Then start Discord → **Settings → Plugins → AI-Plugin → Enable**.
 
-Use a Vencord tree if that is your client. Then start Discord → **Settings → Plugins → AI-Plugin → Enable**.
+### Manual
 
-### One command (Windows Command Prompt)
-
-Close Discord. Open **cmd.exe** (not PowerShell) and paste:
+Only if you are not using venpm. Close Discord, then in cmd:
 
 ```bat
-cd /d "%USERPROFILE%\Documents\GitHub" && if not exist Equicord git clone https://github.com/Equicord/Equicord.git && cd Equicord && if not exist src\userplugins mkdir src\userplugins && if not exist src\userplugins\grokAi git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\grokAi && (bun install || corepack pnpm@11.20.0 install) && bun run build && taskkill /F /IM Discord.exe 2>nul & set EQUICORD_USER_DATA_DIR=%CD%&& set EQUICORD_DIRECTORY=%CD%\dist\desktop&& set EQUICORD_DEV_INSTALL=1&& bun run inject -- -install -branch stable
-```
-
-Notes:
-
-- If `bun install` fails on Equicord `link:` packages, the command falls back to Corepack pnpm. No global pnpm install is required.
-- Do not use `mkdir … -Force` in cmd. `-Force` is a PowerShell flag and creates a folder named `-Force`.
-
-### Manual (PowerShell)
-
-```powershell
-cd $env:USERPROFILE\Documents\GitHub\Equicord
-mkdir src\userplugins -Force
-git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\grokAi
-```
-
-Use the `Vencord` repo instead of `Equicord` if that is your client.
-
-Then, from the Equicord / Vencord root, pick **one** package manager:
-
-```powershell
-bun install
-bun run build
-bun run inject
-```
-
-```powershell
-npm.cmd install
-npm.cmd run build
-npm.cmd run inject
-```
-
-```powershell
+cd /d "%USERPROFILE%\Equicord"
+if not exist src\userplugins mkdir src\userplugins
+if not exist src\userplugins\AI-Plugin git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\AI-Plugin
 corepack pnpm@11.20.0 install
 corepack pnpm@11.20.0 run build
-corepack pnpm@11.20.0 run inject
 ```
 
-On Windows PowerShell the `npm` shim is often blocked by execution policy. Use `npm.cmd`.
+If `bun` works on your tree, `bun install` and `bun run build` are fine. If bun cannot link `@vencord/discord-types`, use the `corepack pnpm@11.20.0` commands above.
 
-If inject is interactive or fails, close Discord and run:
+Do not use `mkdir … -Force` in cmd. `-Force` is PowerShell and creates a folder named `-Force`.
 
-```powershell
-$env:EQUICORD_USER_DATA_DIR = "$pwd"
-$env:EQUICORD_DIRECTORY = "$pwd\dist\desktop"
-$env:EQUICORD_DEV_INSTALL = "1"
-.\dist\Installer\EquilotlCli.exe -install -branch stable
+If Discord is not injected yet:
+
+```bat
+cd /d "%USERPROFILE%\Equicord"
+set EQUICORD_USER_DATA_DIR=%CD%
+set EQUICORD_DIRECTORY=%CD%\dist\desktop
+set EQUICORD_DEV_INSTALL=1
+dist\Installer\EquilotlCli.exe -install -branch stable
 ```
 
 If `resources\app.asar` is a directory, set `index.js` to:
@@ -171,22 +141,17 @@ Provider, model, language, icon, and updates.
 
 ## Update
 
-With venpm:
-
-```powershell
+```bat
 venpm update AI-Plugin
 ```
 
-Or close Discord and pull by hand:
+Or, if you cloned by hand:
 
 ```bat
-cd /d "%USERPROFILE%\Documents\GitHub\Equicord" && git -C src\userplugins\grokAi fetch origin && git -C src\userplugins\grokAi reset --hard origin/main && (bun run build || corepack pnpm@11.20.0 run build)
-```
-
-If the tree lives at `C:\Users\User\Equicord`:
-
-```bat
-cd /d "%USERPROFILE%\Equicord" && git -C src\userplugins\grokAi fetch origin && git -C src\userplugins\grokAi reset --hard origin/main && (bun run build || corepack pnpm@11.20.0 run build)
+cd /d "%USERPROFILE%\Equicord"
+git -C src\userplugins\AI-Plugin fetch origin
+git -C src\userplugins\AI-Plugin reset --hard origin/main
+corepack pnpm@11.20.0 run build
 ```
 
 `git reset --hard` makes GitHub win over local edits in the plugin folder.
@@ -246,11 +211,13 @@ Sessions are resumed per channel and per provider (`--resume` / `codex exec resu
 
 | Symptom | What to try |
 | --- | --- |
+| `could not create leading directories of '$env:USERPROFILE\…'` | You ran a PowerShell path in cmd. Set a real path: `venpm config set vencord.path %USERPROFILE%\Equicord` |
 | CLI not installed | Install Grok or Codex, then restart Discord |
 | No active subscription | `grok login` or `codex login` |
 | No chat-bar button | Enable **AI-Plugin**; confirm Chat Input Button API is on; restart after build |
 | Inject / `app.asar` errors | Close Discord completely (tray included) and inject again |
 | bun cannot link `@vencord/discord-types` | Use `corepack pnpm@11.20.0 install` |
+| Plugin listed twice | You have both `src\userplugins\grokAi` and `src\userplugins\AI-Plugin`. Keep one folder. |
 
 Desktop and Vesktop only.
 
