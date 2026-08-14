@@ -62,7 +62,7 @@ function resolveChannelId(options?: OpenOptions) {
 }
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
-    const { language, model, allowWebSearch, grokPath, includeChannelContext, provider, codexPath } = settings.use(["language", "model", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath"]);
+    const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath"]);
     const [status, setStatus] = useState<GrokStatus | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
@@ -79,6 +79,9 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const lang = language as "auto" | "hu" | "en";
     const activeProvider = (provider === "codex" ? "codex" : "grok") as "grok" | "codex";
     const providerLabel = activeProvider === "codex" ? "Codex" : "Grok";
+    const selectedModel = activeProvider === "codex"
+        ? (codexModel && codexModel !== "default" ? codexModel : undefined)
+        : grokModel;
 
     useEffect(() => {
         scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
@@ -155,7 +158,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         return Native.sendChat({
                             prompt: withTranscript(userPrompt, packed, "explain"),
                             sessionId: null,
-                            model: activeProvider === "grok" ? model : undefined,
+                            model: selectedModel,
                             language: lang,
                             grokPath: grokPath || undefined,
                             provider: activeProvider,
@@ -262,7 +265,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 return Native.sendChat({
                     prompt: withTranscript(prompt, packed, "chat"),
                     sessionId,
-                    model: activeProvider === "grok" ? model : undefined,
+                    model: selectedModel,
                     language: lang,
                     allowWebSearch,
                     grokPath: grokPath || undefined,

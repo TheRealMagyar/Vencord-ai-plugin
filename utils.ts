@@ -16,7 +16,7 @@ export function getNative(): GrokNative | null {
     try {
         if (typeof IS_WEB !== "undefined" && IS_WEB) return null;
         const helpers = VencordNative?.pluginHelpers as Record<string, GrokNative> | undefined;
-        return helpers?.GrokAi ?? helpers?.grokAi ?? null;
+        return helpers?.["AI-Plugin"] ?? helpers?.GrokAi ?? helpers?.grokAi ?? helpers?.AIPlugin ?? null;
     } catch {
         return null;
     }

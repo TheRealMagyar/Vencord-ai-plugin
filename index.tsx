@@ -7,6 +7,7 @@
 import "./styles.css";
 
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
+import { migratePluginSetting, migratePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import definePlugin from "@utils/types";
@@ -20,12 +21,15 @@ import { settings } from "./settings";
 import type { GrokStatus, UpdateStatus } from "./types";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
+migratePluginSettings("AI-Plugin", "GrokAi");
+migratePluginSetting("AI-Plugin", "grokModel", "model");
+
 const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat, isAnyChat, channel }) => {
     if (isMainChat === false && isAnyChat === false) return null;
 
     return (
         <ChatBarButton
-            tooltip="Grok"
+            tooltip="AI"
             onClick={() => openGrokModal({ channelId: channel?.id })}
             buttonProps={{ "aria-haspopup": "dialog" }}
         >
@@ -57,11 +61,11 @@ async function runPluginUpdate(language: string) {
         return;
     }
 
-    showToast(t("GrokAi frissítés…", "Updating GrokAi…", language), Toasts.Type.MESSAGE);
+    showToast(t("AI-Plugin frissítés…", "Updating AI-Plugin…", language), Toasts.Type.MESSAGE);
     const result = await Native.applyUpdate();
     if (result.ok) {
         showToast(
-            t("GrokAi frissítve. Indítsd újra a Discordot.", "GrokAi updated. Restart Discord.", language),
+            t("AI-Plugin frissítve. Indítsd újra a Discordot.", "AI-Plugin updated. Restart Discord.", language),
             Toasts.Type.SUCCESS,
         );
         return;
@@ -150,10 +154,10 @@ function SettingsAbout() {
 }
 
 export default definePlugin({
-    name: "GrokAi",
-    description: "Chat bar and message-action Grok button that uses your local Grok CLI subscription.",
+    name: "AI-Plugin",
+    description: "Chat bar AI button using your local Grok or Codex CLI subscription.",
     authors: [{ name: "TheRealMagyar", id: 0n }],
-    searchTerms: ["Grok", "xAI", "AI", "ChatGPT", "explain"],
+    searchTerms: ["GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain"],
     tags: ["Chat", "Utility"],
     dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI"],
     settings,
@@ -174,7 +178,7 @@ export default definePlugin({
     },
 
     toolboxActions: {
-        "GrokAi frissítése": () => runPluginUpdate(settings.store.language),
+        "AI-Plugin frissítése": () => runPluginUpdate(settings.store.language),
     },
 
     contextMenus: {
@@ -225,7 +229,7 @@ export default definePlugin({
                 const Native = getNative();
                 if (!Native) {
                     return sendBotMessage(ctx.channel.id, {
-                        content: "GrokAi only works on desktop Discord / Vesktop.",
+                        content: "AI-Plugin only works on desktop Discord / Vesktop.",
                     });
                 }
 
@@ -237,7 +241,9 @@ export default definePlugin({
                 });
                 const reply = await Native.sendChat({
                     prompt: withTranscript(question, packed, "chat"),
-                    model: settings.store.provider === "codex" ? undefined : settings.store.model,
+                    model: settings.store.provider === "codex"
+                        ? (settings.store.codexModel && settings.store.codexModel !== "default" ? settings.store.codexModel : undefined)
+                        : settings.store.grokModel,
                     language: settings.store.language as "auto" | "hu" | "en",
                     allowWebSearch: settings.store.allowWebSearch,
                     grokPath: settings.store.grokPath || undefined,
@@ -253,7 +259,7 @@ export default definePlugin({
         },
         {
             name: "grokupdate",
-            description: "Pull the latest GrokAi plugin from GitHub and rebuild",
+            description: "Pull the latest AI-Plugin from GitHub and rebuild",
             inputType: ApplicationCommandInputType.BUILT_IN,
             execute: async () => {
                 await runPluginUpdate(settings.store.language);

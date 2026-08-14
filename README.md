@@ -1,4 +1,4 @@
-# GrokAi
+# AI-Plugin
 
 Vencord / Equicord userplugin: Grok a Discord chatben, a **helyi Grok CLI** előfizetéseddel.
 
@@ -99,7 +99,7 @@ Ha az `app.asar` mappa miatt az injector továbbra sem megy, a Discord `resource
 
 `C:\Users\User\Equicord\dist\desktop\patcher.js`
 
-Indítsd a Discordot. Settings → Plugins → **GrokAi** → Enable.
+Indítsd a Discordot. Settings → Plugins → **AI-Plugin** → Enable.
 
 ### Frissítés (Command Prompt)
 

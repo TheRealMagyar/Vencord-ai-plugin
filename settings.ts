@@ -18,46 +18,64 @@ export const settings = definePluginSettings({
     },
     language: {
         type: OptionType.SELECT,
-        description: "UI and Grok reply language / felület és válasz nyelve",
+        description: "UI és válasz nyelve",
         options: [
             { label: "Automatikus (üzenet nyelve)", value: "auto", default: true },
             { label: "Magyar", value: "hu" },
             { label: "English", value: "en" },
         ],
     },
-    model: {
+    grokModel: {
         type: OptionType.SELECT,
-        description: "Grok model used by the local CLI",
+        description: "xAI / Grok modell",
+        hidden() { return this.store.provider === "codex"; },
         options: [
             { label: "grok-4.6 (default)", value: "grok-4.6", default: true },
             { label: "grok-4.5", value: "grok-4.5" },
         ],
     },
+    codexModel: {
+        type: OptionType.SELECT,
+        description: "OpenAI / Codex modell",
+        hidden() { return this.store.provider !== "codex"; },
+        options: [
+            { label: "CLI alapértelmezett", value: "default", default: true },
+            { label: "GPT-5.6-Sol", value: "gpt-5.6-sol" },
+            { label: "GPT-5.6-Terra", value: "gpt-5.6-terra" },
+            { label: "GPT-5.6-Luna", value: "gpt-5.6-luna" },
+            { label: "GPT-5.5", value: "gpt-5.5" },
+            { label: "GPT-5.4", value: "gpt-5.4" },
+            { label: "GPT-5.4-Mini", value: "gpt-5.4-mini" },
+        ],
+    },
     allowWebSearch: {
         type: OptionType.BOOLEAN,
-        description: "Allow Grok to use web search when answering",
+        description: "Webes keresés engedélyezése (Grok)",
+        hidden() { return this.store.provider === "codex"; },
         default: false,
     },
     includeChannelContext: {
         type: OptionType.BOOLEAN,
-        description: "Grok lekérheti a jelenlegi Discord chat / DM üzeneteit (összefoglaló, explain kontextus)",
+        description: "Az AI lekérheti a jelenlegi Discord chat / DM üzeneteit (összefoglaló, explain kontextus)",
         default: true,
     },
     grokPath: {
         type: OptionType.STRING,
-        description: "Optional custom path to grok.exe / grok (leave empty to auto-detect)",
+        description: "Egyedi grok.exe útvonal (üresen auto-detect)",
+        hidden() { return this.store.provider === "codex"; },
         default: "",
         placeholder: String.raw`C:\Users\You\.grok\bin\grok.exe`,
     },
     codexPath: {
         type: OptionType.STRING,
-        description: "Optional custom path to codex.exe (leave empty to auto-detect)",
+        description: "Egyedi codex.exe útvonal (üresen auto-detect)",
+        hidden() { return this.store.provider !== "codex"; },
         default: "",
         placeholder: String.raw`C:\Users\You\AppData\Local\OpenAI\Codex\bin\...\codex.exe`,
     },
     autoUpdate: {
         type: OptionType.BOOLEAN,
-        description: "Discord indításakor ellenőrizze a GitHubot, és telepítse a GrokAi frissítést (újraindítás kell utána)",
+        description: "Discord indításakor ellenőrizze a GitHubot, és telepítse az AI-Plugin frissítést (újraindítás kell utána)",
         default: true,
     },
 });
