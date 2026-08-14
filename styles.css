@@ -1,0 +1,164 @@
+.vc-grokai-root {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 420px;
+    max-height: min(70vh, 640px);
+}
+
+.vc-grokai-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-muted, var(--text-normal));
+}
+
+.vc-grokai-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-danger);
+    flex-shrink: 0;
+}
+
+.vc-grokai-dot.vc-grokai-ok {
+    background: var(--status-positive);
+}
+
+.vc-grokai-messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 4px 8px 0;
+    min-height: 260px;
+}
+
+.vc-grokai-empty {
+    margin: auto;
+    text-align: center;
+    color: var(--text-muted, var(--text-normal));
+    max-width: 360px;
+    line-height: 1.45;
+}
+
+.vc-grokai-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vc-grokai-row.vc-grokai-user {
+    align-items: flex-end;
+}
+
+.vc-grokai-row.vc-grokai-assistant {
+    align-items: flex-start;
+}
+
+.vc-grokai-bubble {
+    max-width: 92%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.vc-grokai-bubble.vc-grokai-user {
+    align-self: flex-end;
+    background: var(--brand-500);
+    color: #fff;
+}
+
+.vc-grokai-bubble.vc-grokai-assistant {
+    align-self: flex-start;
+    background: var(--background-secondary);
+    color: var(--text-default, var(--text-normal));
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+}
+
+.vc-grokai-bubble.vc-grokai-pending {
+    opacity: 0.75;
+    font-style: italic;
+}
+
+.vc-grokai-actions {
+    display: flex;
+    gap: 6px;
+    align-self: flex-start;
+    margin-top: -4px;
+}
+
+.vc-grokai-mini {
+    background: transparent;
+    border: 0;
+    color: var(--text-muted, var(--text-normal));
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 6px;
+}
+
+.vc-grokai-mini:hover {
+    color: var(--text-default, var(--text-normal));
+    text-decoration: underline;
+}
+
+.vc-grokai-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.vc-grokai-input {
+    flex: 1;
+    resize: none;
+    min-height: 44px;
+    max-height: 120px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--input-border);
+    background: var(--input-background);
+    color: var(--text-default, var(--text-normal));
+    font: inherit;
+}
+
+.vc-grokai-send {
+    height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--brand-500);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.vc-grokai-send:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.vc-grokai-icon.vc-grokai-chat-button {
+    color: var(--interactive-normal);
+}
+
+.vc-grokai-icon.vc-grokai-chat-button:hover {
+    color: var(--interactive-hover);
+}
+
+.vc-grokai-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--background-secondary);
+    color: var(--text-default, var(--text-normal));
+    font-size: 13px;
+    line-height: 1.45;
+}
