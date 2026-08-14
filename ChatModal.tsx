@@ -10,7 +10,8 @@ import { ChannelStore, Modal, openModal, Parser, SelectedChannelStore, useEffect
 
 import { packChannelContext, withTranscript } from "./channelContext";
 import { GrokIcon } from "./GrokIcon";
-import { clearThread, getThreadTitle, loadThread, persistableMessages, saveThread } from "./history";
+import { clearThread, getThreadTitle, loadThread } from "./history";
+import { cancelLiveJob, getLiveJob, isChannelBusy, mergeLiveMessages, runLiveChat, subscribeLiveJob } from "./liveChat";
 import { settings } from "./settings";
 import type { ChatMessage, ChatToolStep, GrokStatus } from "./types";
 import { resolveLang } from "./i18n";
@@ -24,22 +25,6 @@ interface OpenOptions {
 }
 
 type MessageActionKind = "explain" | "factcheck";
-
-function nextId() {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function unwrapReplyText(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed.startsWith("{")) return text;
-    try {
-        const data = JSON.parse(trimmed) as { text?: unknown; };
-        if (typeof data.text === "string" && data.text.trim()) return data.text.trim();
-    } catch {
-        // keep original
-    }
-    return text;
-}
 
 function renderMarkdown(text: string) {
     try {
@@ -94,10 +79,9 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const [threadTitle, setThreadTitle] = useState("Grok");
     const scroller = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
-    const busyRef = useRef(false);
     const stickToBottom = useRef(true);
     const started = useRef(false);
-    const messagesRef = useRef<ChatMessage[]>([]);
+    const storedRef = useRef<ChatMessage[]>([]);
     const Native = getNative();
 
     const lang = resolveLang(language);
@@ -138,12 +122,12 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
             if (id) {
                 const stored = await loadThread(id);
                 if (stored) {
-                    messagesRef.current = stored.messages;
-                    setMessages(stored.messages);
+                    storedRef.current = stored.messages;
                     sessionsRef.current = stored.sessions ?? { grok: stored.sessionId };
                     setSessionId(sessionsRef.current[activeProvider] ?? (activeProvider === "grok" ? stored.sessionId : null));
                 }
             }
+            applyLiveView(id, storedRef.current);
 
             if (!Native) {
                 setStatus({
@@ -166,6 +150,9 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
             if (!next.authenticated) return;
 
             const action = resolveMessageAction(options);
+            if (action && isChannelBusy(id)) {
+                return;
+            }
             if (action) {
                 const { kind, message } = action;
                 const content = getMessageContent(message);
@@ -227,24 +214,32 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         })();
     }, []);
 
-    async function persist(nextMessages: ChatMessage[], nextSession: string | null, id = channelId, title = threadTitle) {
-        if (!id) return;
-        sessionsRef.current = { ...sessionsRef.current, [activeProvider]: nextSession };
-        await saveThread({
-            channelId: id,
-            title,
-            sessionId: sessionsRef.current.grok ?? nextSession,
-            sessions: sessionsRef.current,
-            messages: persistableMessages(nextMessages),
-            updatedAt: Date.now(),
-        });
+    function applyLiveView(id = channelId, stored = storedRef.current) {
+        const live = getLiveJob(id);
+        setBusy(Boolean(live));
+        if (live?.sessionId) setSessionId(live.sessionId);
+        setMessages(mergeLiveMessages(stored, live));
     }
 
-    function patchMessage(id: string, patch: Partial<ChatMessage>) {
-        const next = messagesRef.current.map(msg => msg.id === id ? { ...msg, ...patch } : msg);
-        messagesRef.current = next;
-        setMessages(next);
-    }
+    useEffect(() => {
+        return subscribeLiveJob(channelId, () => {
+            if (getLiveJob(channelId)) {
+                applyLiveView(channelId, storedRef.current);
+                return;
+            }
+            if (!channelId) {
+                applyLiveView(channelId, storedRef.current);
+                return;
+            }
+            void loadThread(channelId).then(stored => {
+                storedRef.current = stored?.messages ?? [];
+                if (stored?.sessions) sessionsRef.current = stored.sessions;
+                const nextSession = stored?.sessions?.[activeProvider] ?? stored?.sessionId ?? null;
+                if (nextSession) setSessionId(nextSession);
+                applyLiveView(channelId, storedRef.current);
+            });
+        });
+    }, [channelId]);
 
     async function ask(opts: {
         kind: "chat" | "explain" | "factcheck";
@@ -259,77 +254,33 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         }>;
         context?: { channelId: string; title: string; };
     }) {
-        if (busyRef.current) return;
-        busyRef.current = true;
-        setBusy(true);
-
         const ctxId = opts.context?.channelId || channelId;
         const ctxTitle = opts.context?.title || threadTitle;
-        const jobId = nextId();
-        const userMsg: ChatMessage = { id: nextId(), role: "user", text: opts.visible, at: Date.now() };
-        const pending: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            text: "",
-            pending: true,
-            thought: "",
-            tools: [],
-        };
-        const withPending = [...messagesRef.current, userMsg, pending];
-        messagesRef.current = withPending;
-        setMessages(withPending);
+        if (!Native || isChannelBusy(ctxId)) return;
 
-        const poll = showThinking && Native?.getChatProgress
-            ? window.setInterval(async () => {
-                try {
-                    const live = await Native.getChatProgress(jobId);
-                    if (!live) return;
-                    patchMessage(pending.id, {
-                        thought: live.thought,
-                        tools: live.tools,
-                        text: live.text,
-                    });
-                } catch {
-                    // ignore poll errors
-                }
-            }, 220)
-            : 0;
+        await runLiveChat({
+            channelId: ctxId,
+            title: ctxTitle,
+            provider: activeProvider,
+            sessionId,
+            visible: opts.visible,
+            request: opts.request,
+        });
 
-        try {
-            const reply = await opts.request(jobId);
-            const nextSession = reply.sessionId || sessionId;
-            if (reply.sessionId) setSessionId(reply.sessionId);
-
-            patchMessage(pending.id, {
-                pending: false,
-                error: !reply.ok,
-                at: Date.now(),
-                thought: reply.thought || "",
-                tools: reply.tools || [],
-                text: reply.ok
-                    ? unwrapReplyText(reply.text)
-                    : (reply.error || t("unknownError")),
-            });
-            await persist(messagesRef.current, nextSession, ctxId, ctxTitle);
-        } catch (error) {
-            patchMessage(pending.id, {
-                pending: false,
-                error: true,
-                at: Date.now(),
-                text: error instanceof Error ? error.message : String(error),
-            });
-            await persist(messagesRef.current, sessionId, ctxId, ctxTitle);
-        } finally {
-            if (poll) window.clearInterval(poll);
-            busyRef.current = false;
-            setBusy(false);
-            window.setTimeout(() => inputRef.current?.focus(), 0);
+        if (ctxId) {
+            const stored = await loadThread(ctxId);
+            storedRef.current = stored?.messages ?? [];
+            if (stored?.sessions) sessionsRef.current = stored.sessions;
+            if (stored?.sessions?.[activeProvider] ?? stored?.sessionId)
+                setSessionId(stored?.sessions?.[activeProvider] ?? stored?.sessionId ?? null);
         }
+        applyLiveView(ctxId, storedRef.current);
+        window.setTimeout(() => inputRef.current?.focus(), 0);
     }
 
     async function onSend() {
         const prompt = input.trim();
-        if (!prompt || !Native || busyRef.current) return;
+        if (!prompt || !Native || isChannelBusy(channelId)) return;
         setInput("");
 
         await ask({
@@ -358,17 +309,19 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     }
 
     async function onClear() {
+        cancelLiveJob(channelId);
+        storedRef.current = [];
         if (!channelId) {
-            messagesRef.current = [];
             setMessages([]);
             setSessionId(null);
+            setBusy(false);
             return;
         }
         await clearThread(channelId);
-        messagesRef.current = [];
         sessionsRef.current = {};
         setMessages([]);
         setSessionId(null);
+        setBusy(false);
     }
 
     const connected = Boolean(status?.installed && status.authenticated);
