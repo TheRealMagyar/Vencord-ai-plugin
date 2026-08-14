@@ -1,0 +1,21 @@
+{
+  "$schema": "https://venpm.dev/schemas/v1/plugins.json",
+  "name": "ai-plugin",
+  "description": "Local Grok (xAI) or Codex (OpenAI / ChatGPT) inside Discord via the signed-in CLI.",
+  "plugins": {
+    "AI-Plugin": {
+      "version": "1.0.0",
+      "description": "Chat bar AI button using your local Grok or Codex CLI subscription.",
+      "authors": [
+        {
+          "name": "TheRealMagyar",
+          "id": "0"
+        }
+      ],
+      "license": "GPL-3.0-or-later",
+      "source": {
+        "git": "https://github.com/TheRealMagyar/Vencord-ai-plugin.git"
+      }
+    }
+  }
+}

@@ -49,6 +49,25 @@ You also need an Equicord or Vencord **source tree**. The installer `.asar` cann
 
 ## Install
 
+### venpm (recommended)
+
+[venpm](https://venpm.dev) installs the plugin into your Equicord / Vencord source tree and rebuilds.
+
+```powershell
+npm.cmd install -g @kamaras/venpm
+venpm config set vencord.path "$env:USERPROFILE\Documents\GitHub\Equicord"
+venpm repo add https://raw.githubusercontent.com/TheRealMagyar/Vencord-ai-plugin/main/plugins.json
+venpm install AI-Plugin
+```
+
+If Equicord lives at `C:\Users\User\Equicord`, set that path instead:
+
+```powershell
+venpm config set vencord.path "$env:USERPROFILE\Equicord"
+```
+
+Use a Vencord tree if that is your client. Then start Discord → **Settings → Plugins → AI-Plugin → Enable**.
+
 ### One command (Windows Command Prompt)
 
 Close Discord. Open **cmd.exe** (not PowerShell) and paste:
@@ -143,7 +162,13 @@ Provider, model, language, icon, and updates.
 
 ## Update
 
-Close Discord, then:
+With venpm:
+
+```powershell
+venpm update AI-Plugin
+```
+
+Or close Discord and pull by hand:
 
 ```bat
 cd /d "%USERPROFILE%\Documents\GitHub\Equicord" && git -C src\userplugins\grokAi fetch origin && git -C src\userplugins\grokAi reset --hard origin/main && (bun run build || corepack pnpm@11.20.0 run build)

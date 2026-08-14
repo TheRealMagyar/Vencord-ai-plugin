@@ -630,14 +630,22 @@ function resolveGit() {
 
 function findPluginDir() {
     const home = homedir();
-    const candidates = [
-        join(__dirname, "..", "..", "src", "userplugins", "grokAi"),
-        join(home, "Documents", "GitHub", "Equicord", "src", "userplugins", "grokAi"),
-        join(home, "Equicord", "src", "userplugins", "grokAi"),
-        join(home, "Documents", "GitHub", "Vencord", "src", "userplugins", "grokAi"),
-        join(home, "Documents", "GitHub", "Vencord-ai-plugin"),
+    const folderNames = ["AI-Plugin", "grokAi", "ai-plugin"];
+    const roots = [
+        join(__dirname, "..", "..", "src", "userplugins"),
+        join(home, "Documents", "GitHub", "Equicord", "src", "userplugins"),
+        join(home, "Equicord", "src", "userplugins"),
+        join(home, "Documents", "GitHub", "Vencord", "src", "userplugins"),
     ];
-    return candidates.find(dir => existsSync(join(dir, "index.tsx")) && existsSync(join(dir, ".git"))) ?? null;
+    for (const root of roots) {
+        for (const name of folderNames) {
+            const dir = join(root, name);
+            if (existsSync(join(dir, "index.tsx")) && existsSync(join(dir, ".git"))) return dir;
+        }
+    }
+    const standalone = join(home, "Documents", "GitHub", "Vencord-ai-plugin");
+    if (existsSync(join(standalone, "index.tsx")) && existsSync(join(standalone, ".git"))) return standalone;
+    return null;
 }
 
 function findHostRoot(pluginDir: string) {
@@ -701,7 +709,7 @@ export async function checkForUpdate(_event: unknown): Promise<UpdateStatus> {
             pluginDir: null,
             local: null,
             remote: null,
-            error: "Nem találom a GrokAi git mappát (src/userplugins/grokAi).",
+            error: "Nem találom az AI-Plugin git mappát (src/userplugins/AI-Plugin vagy grokAi).",
         };
     }
 

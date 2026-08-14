@@ -1,0 +1,24 @@
+name: venpm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - plugins.json
+      - .github/workflows/venpm.yml
+  pull_request:
+    paths:
+      - plugins.json
+      - .github/workflows/venpm.yml
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Validate plugins.json
+        run: npx --yes @kamaras/venpm validate plugins.json --strict
