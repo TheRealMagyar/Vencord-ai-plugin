@@ -17,6 +17,7 @@ Works on **Discord Desktop** and **Vesktop**. It does **not** run in Vencord Web
 | Commands | `/ai` (optional question), `/aiupdate` |
 | History | Conversation saved per Discord channel / DM |
 | Context | Optional transcript so the AI can summarize, explain, or fact-check with nearby messages |
+| Thinking | Optional live view of reasoning and tool use (Grok and Codex) |
 | Providers | Grok CLI or Codex CLI, switched in settings |
 | Models | Grok 4.6 / 4.5, or GPT-5.6 Sol–Luna / 5.5 / 5.4 / 5.4-Mini |
 | Language | English (default), Magyar, Deutsch, Español |
@@ -217,6 +218,8 @@ Older clones may still live in `src\userplugins\grokAi`. The updater looks for b
 
 The chat window keeps history **per Discord channel or DM**. Clearing history in the modal only clears that thread.
 
+Turn on **Show thinking** (settings or the toolbar toggle) to watch Grok / Codex reason and use tools such as web search while they work. The final answer stays separate from that trace.
+
 If **Include channel context** is on, the AI can use recent messages for summaries, explain, and fact-check (the target message is marked with `>>>`).
 
 Enter sends. Shift+Enter inserts a new line.
@@ -234,6 +237,7 @@ Enter sends. Shift+Enter inserts a new line.
 | Grok model | `grok-4.6` (default) or `grok-4.5`. Hidden when Codex is selected |
 | Codex model | CLI default, GPT-5.6 Sol / Terra / Luna, GPT-5.5, 5.4, 5.4-Mini. Hidden when Grok is selected |
 | Allow web search | Grok only |
+| Show thinking | Live thinking + tool use (web search, etc.) for Grok and Codex |
 | Include channel context | Attach Discord history for summaries, explain, and fact-check |
 | Grok / Codex path | Optional override if auto-detect fails |
 | Auto update | Pull from GitHub when Discord starts |

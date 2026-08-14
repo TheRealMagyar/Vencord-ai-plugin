@@ -68,5 +68,10 @@ export async function clearThread(channelId: string) {
 export function persistableMessages(messages: ChatMessage[]) {
     return messages
         .filter(msg => !msg.pending)
-        .map(({ pending: _pending, ...msg }) => msg);
+        .map(({ pending: _pending, ...msg }) => ({
+            ...msg,
+            thought: msg.thought && msg.thought.length > 6000
+                ? msg.thought.slice(-6000)
+                : msg.thought,
+        }));
 }

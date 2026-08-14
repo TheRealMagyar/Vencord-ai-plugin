@@ -45,6 +45,36 @@ const dict = {
         de: "{provider} denkt nach…",
         es: "{provider} está pensando…",
     },
+    thinkingLabel: {
+        en: "Thinking",
+        hu: "Gondolkodás",
+        de: "Denken",
+        es: "Pensando",
+    },
+    thinkingToggle: {
+        en: "Thinking",
+        hu: "Gondolkodás",
+        de: "Denken",
+        es: "Pensando",
+    },
+    toolSearch: {
+        en: "Searching the web",
+        hu: "Webes keresés",
+        de: "Websuche",
+        es: "Buscando en la web",
+    },
+    toolFetch: {
+        en: "Reading a page",
+        hu: "Oldal olvasása",
+        de: "Seite lesen",
+        es: "Leyendo una página",
+    },
+    toolRunning: {
+        en: "Using {name}",
+        hu: "{name} használata",
+        de: "{name} wird verwendet",
+        es: "Usando {name}",
+    },
     unknownError: {
         en: "Unknown AI error.",
         hu: "Ismeretlen AI hiba.",

@@ -11,12 +11,65 @@ import { homedir, tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 
-import type { AiProvider, ChatRequest, ExplainRequest, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
+import type { AiProvider, ChatProgress, ChatRequest, ChatToolStep, ExplainRequest, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
 
 const execFileAsync = promisify(execFile);
 const GROK_BIN = process.platform === "win32" ? "grok.exe" : "grok";
 const PROMPT_TIMEOUT_MS = 180_000;
 const PROBE_TIMEOUT_MS = 12_000;
+const JOB_TTL_MS = 60_000;
+const MAX_THOUGHT = 6_000;
+
+const jobs = new Map<string, ChatProgress>();
+
+function newJob(jobId?: string): ChatProgress {
+    const id = jobId?.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const progress: ChatProgress = {
+        jobId: id,
+        status: "running",
+        thought: "",
+        text: "",
+        tools: [],
+        sessionId: null,
+        error: null,
+    };
+    jobs.set(id, progress);
+    return progress;
+}
+
+function finishJob(progress: ChatProgress, reply: GrokReply) {
+    progress.status = reply.ok ? "done" : "error";
+    progress.text = reply.text;
+    progress.sessionId = reply.sessionId;
+    progress.error = reply.error;
+    setTimeout(() => jobs.delete(progress.jobId), JOB_TTL_MS);
+}
+
+function clipThought(text: string) {
+    if (text.length <= MAX_THOUGHT) return text;
+    return text.slice(text.length - MAX_THOUGHT);
+}
+
+function upsertTool(progress: ChatProgress, step: ChatToolStep) {
+    const existing = progress.tools.find(tool => tool.id === step.id);
+    if (existing) {
+        existing.name = step.name || existing.name;
+        existing.status = step.status;
+        if (step.detail) existing.detail = step.detail;
+        return;
+    }
+    progress.tools.push(step);
+}
+
+function asText(value: unknown) {
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function toolDetail(raw: unknown) {
+    if (!raw || typeof raw !== "object") return undefined;
+    const rec = raw as Record<string, unknown>;
+    return asText(rec.query) || asText(rec.url) || asText(rec.command);
+}
 
 function grokHome() {
     return process.env.GROK_HOME || join(homedir(), ".grok");
@@ -316,7 +369,7 @@ function buildArgs(opts: {
         "--no-subagents",
         "--no-memory",
         "--max-turns", String(opts.maxTurns),
-        "--output-format", "json",
+        "--output-format", "streaming-json",
         "--cwd", isolatedCwd(),
         "--prompt-file", opts.promptFile,
         "--rules", opts.extraRules,
@@ -464,7 +517,91 @@ function parseReply(stdout: string): GrokReply {
     };
 }
 
-function spawnGrok(grokPath: string, args: string[], allowWebSearch: boolean) {
+function applyGrokEvent(progress: ChatProgress, event: Record<string, unknown>) {
+    const type = event.type;
+    if (type === "thought") {
+        const chunk = typeof event.data === "string" ? event.data : "";
+        if (chunk) progress.thought = clipThought(progress.thought + chunk);
+        return;
+    }
+    if (type === "text") {
+        const chunk = typeof event.data === "string" ? event.data : "";
+        if (!chunk) return;
+        const acc = (progress as ChatProgress & { _rawText?: string; _postTool?: string; _sawTool?: boolean; });
+        acc._rawText = (acc._rawText || "") + chunk;
+        if (acc._sawTool) acc._postTool = (acc._postTool || "") + chunk;
+        progress.text = (acc._sawTool && acc._postTool?.trim() ? acc._postTool : acc._rawText).trim();
+        return;
+    }
+    if (type === "tool_call") {
+        const acc = progress as ChatProgress & { _sawTool?: boolean; _postTool?: string; };
+        acc._sawTool = true;
+        acc._postTool = "";
+        const id = asText(event.toolCallId) || `tool-${progress.tools.length}`;
+        upsertTool(progress, {
+            id,
+            name: asText(event.toolName) || asText(event.title) || asText(event.kind) || "tool",
+            status: event.status === "completed" ? "done" : "running",
+            detail: toolDetail(event.rawInput) || asText(event.title),
+        });
+        return;
+    }
+    if (type === "tool_call_update") {
+        const id = asText(event.toolCallId);
+        if (!id) return;
+        const existing = progress.tools.find(tool => tool.id === id);
+        const detail = toolDetail(event.rawOutput) || existing?.detail;
+        upsertTool(progress, {
+            id,
+            name: existing?.name || "tool",
+            status: event.status === "completed" || event.status === "done" ? "done" : "running",
+            detail,
+        });
+        return;
+    }
+    if (type === "end") {
+        progress.sessionId = asText(event.sessionId) || progress.sessionId;
+        return;
+    }
+    if (type === "error") {
+        progress.error = asText(event.message) || asText(event.error) || "Grok hiba";
+        progress.status = "error";
+    }
+}
+
+function createLineParser(onEvent: (event: Record<string, unknown>) => void) {
+    let buf = "";
+    return {
+        push(chunk: string) {
+            buf += chunk;
+            let idx = buf.indexOf("\n");
+            while (idx >= 0) {
+                const line = buf.slice(0, idx).trim();
+                buf = buf.slice(idx + 1);
+                if (line.startsWith("{")) {
+                    try {
+                        onEvent(JSON.parse(line) as Record<string, unknown>);
+                    } catch {
+                        // skip
+                    }
+                }
+                idx = buf.indexOf("\n");
+            }
+        },
+        flush() {
+            const line = buf.trim();
+            buf = "";
+            if (!line.startsWith("{")) return;
+            try {
+                onEvent(JSON.parse(line) as Record<string, unknown>);
+            } catch {
+                // skip
+            }
+        },
+    };
+}
+
+function spawnGrok(grokPath: string, args: string[], allowWebSearch: boolean, progress: ChatProgress) {
     return new Promise<{ stdout: string; stderr: string; code: number | null; }>((resolve, reject) => {
         const child = spawn(grokPath, args, {
             cwd: isolatedCwd(),
@@ -485,9 +622,13 @@ function spawnGrok(grokPath: string, args: string[], allowWebSearch: boolean) {
             reject(new Error(`Időtúllépés (${PROMPT_TIMEOUT_MS / 1000}s).`));
         }, PROMPT_TIMEOUT_MS);
 
+        const lines = createLineParser(event => applyGrokEvent(progress, event));
         child.stdout?.setEncoding("utf8");
         child.stderr?.setEncoding("utf8");
-        child.stdout?.on("data", chunk => { stdout += chunk; });
+        child.stdout?.on("data", chunk => {
+            stdout += chunk;
+            lines.push(chunk);
+        });
         child.stderr?.on("data", chunk => { stderr += chunk; });
         child.on("error", error => {
             clearTimeout(timer);
@@ -495,12 +636,13 @@ function spawnGrok(grokPath: string, args: string[], allowWebSearch: boolean) {
         });
         child.on("close", code => {
             clearTimeout(timer);
+            lines.flush();
             resolve({ stdout, stderr, code });
         });
     });
 }
 
-async function runPrompt(request: ChatRequest): Promise<GrokReply> {
+async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<GrokReply> {
     const grokPath = resolveGrokPath(request.grokPath);
     if (!grokPath) {
         return {
@@ -527,20 +669,45 @@ async function runPrompt(request: ChatRequest): Promise<GrokReply> {
             maxTurns: maxTurnsFor(request),
         });
 
-        const { stdout, stderr, code } = await spawnGrok(grokPath, args, allowWebSearch);
-        const parsed = parseReply(stdout);
+        const { stdout, stderr, code } = await spawnGrok(grokPath, args, allowWebSearch, progress);
 
-        if (!parsed.ok) return parsed;
+        const streamedText = progress.text.trim();
+        const streamedSession = progress.sessionId;
+        if (streamedText) {
+            if (code && code !== 0 && progress.status === "error" && !streamedText) {
+                return {
+                    ok: false,
+                    text: "",
+                    sessionId: streamedSession,
+                    error: progress.error || stderr.trim() || `Grok kilépett (kód ${code}).`,
+                    thought: progress.thought || undefined,
+                    tools: progress.tools,
+                };
+            }
+            return {
+                ok: true,
+                text: streamedText,
+                sessionId: streamedSession,
+                error: null,
+                thought: progress.thought || undefined,
+                tools: progress.tools,
+            };
+        }
+
+        const parsed = parseReply(stdout);
+        if (!parsed.ok) return { ...parsed, thought: progress.thought || undefined, tools: progress.tools };
         if (code && code !== 0 && !parsed.text) {
             return {
                 ok: false,
                 text: "",
                 sessionId: parsed.sessionId,
                 error: stderr.trim() || parsed.error || `Grok kilépett (kód ${code}).`,
+                thought: progress.thought || undefined,
+                tools: progress.tools,
             };
         }
 
-        return parsed;
+        return { ...parsed, thought: progress.thought || undefined, tools: progress.tools };
     } catch (error) {
         return {
             ok: false,
@@ -553,49 +720,86 @@ async function runPrompt(request: ChatRequest): Promise<GrokReply> {
     }
 }
 
-function parseCodexJsonl(stdout: string): GrokReply {
-    let sessionId: string | null = null;
-    let text = "";
-    let error: string | null = null;
+function applyCodexEvent(progress: ChatProgress, event: Record<string, unknown>) {
+    const type = asText(event.type);
+    if (type === "thread.started" && asText(event.thread_id))
+        progress.sessionId = asText(event.thread_id);
 
+    const item = event.item && typeof event.item === "object"
+        ? event.item as {
+            id?: string;
+            type?: string;
+            text?: string;
+            query?: string;
+            command?: string;
+            tool?: string;
+            status?: string;
+        }
+        : undefined;
+    if (type === "item.started" && item) {
+        const kind = item.type;
+        if (kind === "web_search" || kind === "command_execution" || kind === "mcp_tool_call") {
+            upsertTool(progress, {
+                id: item.id || `tool-${progress.tools.length}`,
+                name: kind === "web_search" ? "web_search" : (item.tool || item.command || kind || "tool"),
+                status: "running",
+                detail: item.query || item.command || item.tool,
+            });
+        }
+        return;
+    }
+
+    if (type === "item.completed" && item) {
+        if (item.type === "reasoning" && item.text)
+            progress.thought = clipThought(progress.thought ? `${progress.thought}\n${item.text}` : item.text);
+        if (item.type === "agent_message" && item.text)
+            progress.text = item.text;
+        if (item.type === "web_search" || item.type === "command_execution" || item.type === "mcp_tool_call") {
+            upsertTool(progress, {
+                id: item.id || `tool-${progress.tools.length}`,
+                name: item.type === "web_search" ? "web_search" : (item.tool || item.command || item.type || "tool"),
+                status: item.status === "failed" ? "error" : "done",
+                detail: item.query || item.command || item.tool,
+            });
+        }
+        return;
+    }
+
+    if (type === "error")
+        progress.error = asText(event.message) || "Codex hiba";
+    if (type === "turn.failed") {
+        const err = event.error;
+        progress.error = typeof err === "string"
+            ? err
+            : (err && typeof err === "object" ? asText((err as { message?: unknown; }).message) : undefined)
+                || asText(event.message)
+                || "Codex turn failed";
+        progress.status = "error";
+    }
+}
+
+function parseCodexJsonl(stdout: string, progress: ChatProgress): GrokReply {
     for (const line of stdout.split(/\r?\n/)) {
         const trimmed = line.trim();
         if (!trimmed.startsWith("{")) continue;
         try {
-            const event = JSON.parse(trimmed) as {
-                type?: string;
-                thread_id?: string;
-                message?: string;
-                error?: { message?: string; } | string;
-                item?: { type?: string; text?: string; };
-            };
-            if (event.type === "thread.started" && event.thread_id)
-                sessionId = event.thread_id;
-            if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text)
-                text = event.item.text;
-            if (event.type === "error")
-                error = event.message || "Codex hiba";
-            if (event.type === "turn.failed") {
-                error = typeof event.error === "string"
-                    ? event.error
-                    : event.error?.message || event.message || "Codex turn failed";
-            }
+            applyCodexEvent(progress, JSON.parse(trimmed));
         } catch {
             // skip non-event lines
         }
     }
 
-    if (text.trim())
-        return { ok: true, text: text.trim(), sessionId, error: null };
-    if (error)
-        return { ok: false, text: "", sessionId, error };
+    if (progress.text.trim())
+        return { ok: true, text: progress.text.trim(), sessionId: progress.sessionId, error: null, thought: progress.thought || undefined, tools: progress.tools };
+    if (progress.error)
+        return { ok: false, text: "", sessionId: progress.sessionId, error: progress.error, thought: progress.thought || undefined, tools: progress.tools };
     const fallback = stdout.trim();
     return fallback
-        ? { ok: true, text: fallback, sessionId, error: null }
-        : { ok: false, text: "", sessionId, error: "A Codex CLI üres választ adott." };
+        ? { ok: true, text: fallback, sessionId: progress.sessionId, error: null, thought: progress.thought || undefined, tools: progress.tools }
+        : { ok: false, text: "", sessionId: progress.sessionId, error: "A Codex CLI üres választ adott.", thought: progress.thought || undefined, tools: progress.tools };
 }
 
-async function runCodexPrompt(request: ChatRequest): Promise<GrokReply> {
+async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Promise<GrokReply> {
     const codexPath = resolveCodexPath(request.codexPath);
     if (!codexPath) {
         return {
@@ -647,9 +851,13 @@ async function runCodexPrompt(request: ChatRequest): Promise<GrokReply> {
             resolve({ ok: false, text: "", sessionId: null, error: `Időtúllépés (${PROMPT_TIMEOUT_MS / 1000}s).` });
         }, PROMPT_TIMEOUT_MS);
 
+        const lines = createLineParser(event => applyCodexEvent(progress, event));
         child.stdout?.setEncoding("utf8");
         child.stderr?.setEncoding("utf8");
-        child.stdout?.on("data", chunk => { stdout += chunk; });
+        child.stdout?.on("data", chunk => {
+            stdout += chunk;
+            lines.push(chunk);
+        });
         child.stderr?.on("data", chunk => { stderr += chunk; });
         child.stdin?.write(prompt);
         child.stdin?.end();
@@ -659,7 +867,17 @@ async function runCodexPrompt(request: ChatRequest): Promise<GrokReply> {
         });
         child.on("close", code => {
             clearTimeout(timer);
-            const parsed = parseCodexJsonl(stdout);
+            lines.flush();
+            const parsed = progress.text.trim()
+                ? {
+                    ok: true as const,
+                    text: progress.text.trim(),
+                    sessionId: progress.sessionId,
+                    error: null,
+                    thought: progress.thought || undefined,
+                    tools: progress.tools,
+                }
+                : parseCodexJsonl(stdout, progress);
             if (!parsed.ok && code && code !== 0 && !parsed.error)
                 parsed.error = stderr.trim() || `Codex kilépett (kód ${code}).`;
             resolve(parsed);
@@ -667,9 +885,34 @@ async function runCodexPrompt(request: ChatRequest): Promise<GrokReply> {
     });
 }
 
+export async function getChatProgress(_event: unknown, jobId: string): Promise<ChatProgress | null> {
+    return jobs.get(jobId) ?? null;
+}
+
 export async function sendChat(_event: unknown, request: ChatRequest): Promise<GrokReply> {
-    if (request.provider === "codex") return runCodexPrompt(request);
-    return runPrompt(request);
+    const progress = newJob(request.jobId);
+    try {
+        const reply = request.provider === "codex"
+            ? await runCodexPrompt(request, progress)
+            : await runPrompt(request, progress);
+        finishJob(progress, reply);
+        return {
+            ...reply,
+            thought: progress.thought || reply.thought,
+            tools: progress.tools.length ? progress.tools : reply.tools,
+        };
+    } catch (error) {
+        const reply = {
+            ok: false,
+            text: "",
+            sessionId: progress.sessionId,
+            error: error instanceof Error ? error.message : String(error),
+            thought: progress.thought || undefined,
+            tools: progress.tools,
+        };
+        finishJob(progress, reply);
+        return reply;
+    }
 }
 
 export async function explainMessage(_event: unknown, request: ExplainRequest): Promise<GrokReply> {
@@ -686,12 +929,13 @@ export async function explainMessage(_event: unknown, request: ExplainRequest): 
     if (request.channelName) parts.push(`Channel: ${request.channelName}`);
     parts.push("", "Message:", request.content);
 
-    return runPrompt({
+    return sendChat(undefined, {
         prompt: parts.join("\n"),
         model: request.model,
         language: request.language,
         grokPath: request.grokPath,
         allowWebSearch: false,
+        kind: "explain",
     });
 }
 

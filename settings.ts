@@ -74,6 +74,11 @@ export const settings = definePluginSettings({
         hidden() { return this.store.provider === "codex"; },
         default: false,
     },
+    showThinking: {
+        type: OptionType.BOOLEAN,
+        description: "Show thinking and tool use (web search, etc.) while Grok or Codex works",
+        default: true,
+    },
     includeChannelContext: {
         type: OptionType.BOOLEAN,
         description: "Let the AI read messages from the current Discord chat / DM (summaries, explain, fact-check context)",

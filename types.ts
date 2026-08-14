@@ -18,11 +18,32 @@ export interface GrokStatus {
     error: string | null;
 }
 
+export type ToolStepStatus = "running" | "done" | "error";
+
+export interface ChatToolStep {
+    id: string;
+    name: string;
+    status: ToolStepStatus;
+    detail?: string;
+}
+
+export interface ChatProgress {
+    jobId: string;
+    status: "running" | "done" | "error";
+    thought: string;
+    text: string;
+    tools: ChatToolStep[];
+    sessionId: string | null;
+    error: string | null;
+}
+
 export interface GrokReply {
     ok: boolean;
     text: string;
     sessionId: string | null;
     error: string | null;
+    thought?: string;
+    tools?: ChatToolStep[];
 }
 
 export interface ChatRequest {
@@ -35,6 +56,7 @@ export interface ChatRequest {
     provider?: AiProvider;
     codexPath?: string;
     kind?: "chat" | "explain" | "factcheck";
+    jobId?: string;
 }
 
 export interface ExplainRequest {
@@ -52,6 +74,8 @@ export interface ChatMessage {
     text: string;
     pending?: boolean;
     error?: boolean;
+    thought?: string;
+    tools?: ChatToolStep[];
     at?: number;
 }
 

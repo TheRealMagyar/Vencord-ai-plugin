@@ -12,7 +12,7 @@ import { packChannelContext, withTranscript } from "./channelContext";
 import { GrokIcon } from "./GrokIcon";
 import { clearThread, getThreadTitle, loadThread, persistableMessages, saveThread } from "./history";
 import { settings } from "./settings";
-import type { ChatMessage, GrokStatus } from "./types";
+import type { ChatMessage, ChatToolStep, GrokStatus } from "./types";
 import { resolveLang } from "./i18n";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
@@ -49,6 +49,16 @@ function renderMarkdown(text: string) {
     }
 }
 
+function toolLabel(step: ChatToolStep) {
+    const name = (step.name || "").toLowerCase();
+    if (name.includes("search") || name === "web_search")
+        return step.detail ? `${t("toolSearch")}: ${step.detail}` : t("toolSearch");
+    if (name.includes("fetch") || name === "web_fetch")
+        return step.detail ? `${t("toolFetch")}: ${step.detail}` : t("toolFetch");
+    const base = t("toolRunning", { name: step.name || "tool" });
+    return step.detail ? `${base}: ${step.detail}` : base;
+}
+
 function formatTime(at?: number) {
     if (!at) return "";
     try {
@@ -73,7 +83,7 @@ function resolveMessageAction(options?: OpenOptions): { kind: MessageActionKind;
 }
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
-    const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath"]);
+    const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath, showThinking } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath", "showThinking"]);
     const [status, setStatus] = useState<GrokStatus | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
@@ -169,7 +179,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         author: author ? ` (@${author})` : "",
                         content,
                     }),
-                    request: async () => {
+                    request: async jobId => {
                         const packed = await packChannelContext({
                             channelId: id,
                             prompt: content,
@@ -192,6 +202,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             provider: activeProvider,
                             codexPath: codexPath || undefined,
                             kind,
+                            jobId,
                         });
                     },
                     context: { channelId: id, title },
@@ -218,10 +229,23 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         });
     }
 
+    function patchMessage(id: string, patch: Partial<ChatMessage>) {
+        const next = messagesRef.current.map(msg => msg.id === id ? { ...msg, ...patch } : msg);
+        messagesRef.current = next;
+        setMessages(next);
+    }
+
     async function ask(opts: {
         kind: "chat" | "explain" | "factcheck";
         visible: string;
-        request: () => Promise<{ ok: boolean; text: string; sessionId: string | null; error: string | null; }>;
+        request: (jobId: string) => Promise<{
+            ok: boolean;
+            text: string;
+            sessionId: string | null;
+            error: string | null;
+            thought?: string;
+            tools?: ChatToolStep[];
+        }>;
         context?: { channelId: string; title: string; };
     }) {
         if (busyRef.current) return;
@@ -230,52 +254,62 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
 
         const ctxId = opts.context?.channelId || channelId;
         const ctxTitle = opts.context?.title || threadTitle;
+        const jobId = nextId();
         const userMsg: ChatMessage = { id: nextId(), role: "user", text: opts.visible, at: Date.now() };
         const pending: ChatMessage = {
             id: nextId(),
             role: "assistant",
-            text: t("thinking", { provider: providerLabel }),
+            text: "",
             pending: true,
+            thought: "",
+            tools: [],
         };
         const withPending = [...messagesRef.current, userMsg, pending];
         messagesRef.current = withPending;
         setMessages(withPending);
 
+        const poll = showThinking && Native?.getChatProgress
+            ? window.setInterval(async () => {
+                try {
+                    const live = await Native.getChatProgress(jobId);
+                    if (!live) return;
+                    patchMessage(pending.id, {
+                        thought: live.thought,
+                        tools: live.tools,
+                        text: live.text,
+                    });
+                } catch {
+                    // ignore poll errors
+                }
+            }, 220)
+            : 0;
+
         try {
-            const reply = await opts.request();
+            const reply = await opts.request(jobId);
             const nextSession = reply.sessionId || sessionId;
             if (reply.sessionId) setSessionId(reply.sessionId);
 
-            const done = withPending.map(msg => msg.id === pending.id
-                ? {
-                    ...msg,
-                    pending: false,
-                    error: !reply.ok,
-                    at: Date.now(),
-                    text: reply.ok
-                        ? unwrapReplyText(reply.text)
-                        : (reply.error || t("unknownError")),
-                }
-                : msg
-            );
-            messagesRef.current = done;
-            setMessages(done);
-            await persist(done, nextSession, ctxId, ctxTitle);
+            patchMessage(pending.id, {
+                pending: false,
+                error: !reply.ok,
+                at: Date.now(),
+                thought: reply.thought || "",
+                tools: reply.tools || [],
+                text: reply.ok
+                    ? unwrapReplyText(reply.text)
+                    : (reply.error || t("unknownError")),
+            });
+            await persist(messagesRef.current, nextSession, ctxId, ctxTitle);
         } catch (error) {
-            const done = withPending.map(msg => msg.id === pending.id
-                ? {
-                    ...msg,
-                    pending: false,
-                    error: true,
-                    at: Date.now(),
-                    text: error instanceof Error ? error.message : String(error),
-                }
-                : msg
-            );
-            messagesRef.current = done;
-            setMessages(done);
-            await persist(done, sessionId, ctxId, ctxTitle);
+            patchMessage(pending.id, {
+                pending: false,
+                error: true,
+                at: Date.now(),
+                text: error instanceof Error ? error.message : String(error),
+            });
+            await persist(messagesRef.current, sessionId, ctxId, ctxTitle);
         } finally {
+            if (poll) window.clearInterval(poll);
             busyRef.current = false;
             setBusy(false);
             window.setTimeout(() => inputRef.current?.focus(), 0);
@@ -290,7 +324,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         await ask({
             kind: "chat",
             visible: prompt,
-            request: async () => {
+            request: async jobId => {
                 const packed = await packChannelContext({
                     channelId,
                     prompt,
@@ -306,6 +340,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     provider: activeProvider,
                     codexPath: codexPath || undefined,
                     kind: "chat",
+                    jobId,
                 });
             },
         });
@@ -343,9 +378,17 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         {t("historyLabel")} {threadTitle}
                         {messages.length ? ` · ${messages.filter(m => !m.pending).length}` : ""}
                     </span>
-                    <button className={cl("mini")} disabled={!messages.length} onClick={onClear}>
-                        {t("clearHistory")}
-                    </button>
+                    <div className={cl("toolbar-actions")}>
+                        <button
+                            className={cl("mini", { on: showThinking })}
+                            onClick={() => { settings.store.showThinking = !showThinking; }}
+                        >
+                            {t("thinkingToggle")}
+                        </button>
+                        <button className={cl("mini")} disabled={!messages.length} onClick={onClear}>
+                            {t("clearHistory")}
+                        </button>
+                    </div>
                 </div>
 
                 <div
@@ -369,32 +412,54 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         </div>
                     )}
 
-                    {messages.map(msg => (
-                        <div key={msg.id} className={cl("row", msg.role)}>
-                            <div className={cl("meta")}>
-                                {msg.role === "user" ? t("you") : providerLabel}
-                                {msg.at ? ` · ${formatTime(msg.at)}` : ""}
-                            </div>
-                            <div className={cl("bubble", msg.role, { pending: Boolean(msg.pending), error: Boolean(msg.error) })}>
-                                {msg.role === "assistant" && !msg.pending
-                                    ? renderMarkdown(msg.text)
-                                    : msg.text}
-                            </div>
-                            {msg.role === "assistant" && !msg.pending && (
-                                <div className={cl("actions")}>
-                                    <button className={cl("mini")} onClick={() => copyWithToast(msg.text)}>
-                                        {t("copy")}
-                                    </button>
-                                    <button
-                                        className={cl("mini")}
-                                        onClick={() => insertTextIntoChatInputBox(msg.text)}
-                                    >
-                                        {t("insertChat")}
-                                    </button>
+                    {messages.map(msg => {
+                        const tools = showThinking ? (msg.tools ?? []) : [];
+                        const thought = showThinking ? (msg.thought ?? "") : "";
+                        const showTrace = msg.role === "assistant" && (thought.trim() || tools.length);
+                        const answer = msg.pending && !msg.text.trim()
+                            ? t("thinking", { provider: providerLabel })
+                            : msg.text;
+                        return (
+                            <div key={msg.id} className={cl("row", msg.role)}>
+                                <div className={cl("meta")}>
+                                    {msg.role === "user" ? t("you") : providerLabel}
+                                    {msg.at ? ` · ${formatTime(msg.at)}` : ""}
                                 </div>
-                            )}
-                        </div>
-                    ))}
+                                {showTrace && (
+                                    <details className={cl("trace", { live: Boolean(msg.pending) })} open={Boolean(msg.pending)}>
+                                        <summary>{t("thinkingLabel")}</summary>
+                                        {tools.map(step => (
+                                            <div key={step.id} className={cl("tool", step.status)}>
+                                                <span className={cl("tool-dot")} />
+                                                {toolLabel(step)}
+                                            </div>
+                                        ))}
+                                        {thought.trim() && (
+                                            <div className={cl("thought")}>{thought.trim()}</div>
+                                        )}
+                                    </details>
+                                )}
+                                <div className={cl("bubble", msg.role, { pending: Boolean(msg.pending), error: Boolean(msg.error) })}>
+                                    {msg.role === "assistant" && (!msg.pending || msg.text.trim())
+                                        ? renderMarkdown(answer)
+                                        : answer}
+                                </div>
+                                {msg.role === "assistant" && !msg.pending && (
+                                    <div className={cl("actions")}>
+                                        <button className={cl("mini")} onClick={() => copyWithToast(msg.text)}>
+                                            {t("copy")}
+                                        </button>
+                                        <button
+                                            className={cl("mini")}
+                                            onClick={() => insertTextIntoChatInputBox(msg.text)}
+                                        >
+                                            {t("insertChat")}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
 
                 <div className={cl("composer", { disabled: busy || !connected })}>
