@@ -204,9 +204,9 @@ function SettingsAbout() {
 
 export default definePlugin({
     name: "AI-Plugin",
-    description: "Chat bar AI button using your local Grok or Codex CLI subscription.",
+    description: "Chat with your local Grok or Codex CLI from Discord. Explain and fact-check messages.",
     authors: [{ name: "TheRealMagyar", id: 0n }],
-    searchTerms: ["GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck"],
+    searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck"],
     tags: ["Chat", "Utility"],
     dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI"],
     settings,
@@ -294,7 +294,7 @@ export default definePlugin({
                 const Native = getNative();
                 if (!Native) {
                     return sendBotMessage(ctx.channel.id, {
-                        content: "AI-Plugin only works on desktop Discord / Vesktop.",
+                        content: "AI-Plugin only works on desktop Discord, Vesktop, or Equibop.",
                     });
                 }
 

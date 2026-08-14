@@ -1066,9 +1066,10 @@ function resolveGit() {
 
 function findPluginDir() {
     const home = homedir();
-    const folderNames = ["AI-Plugin", "grokAi", "ai-plugin"];
+    const folderNames = ["aiPlugin", "aiPlugin.desktop", "AI-Plugin", "grokAi", "ai-plugin"];
     const roots = [
         join(__dirname, "..", "..", "src", "userplugins"),
+        join(home, "Documents", "Equicord", "src", "userplugins"),
         join(home, "Documents", "GitHub", "Equicord", "src", "userplugins"),
         join(home, "Equicord", "src", "userplugins"),
         join(home, "Documents", "GitHub", "Vencord", "src", "userplugins"),

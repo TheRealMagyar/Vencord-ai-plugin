@@ -2,11 +2,37 @@
 
 Local **Grok (xAI)** or **Codex (OpenAI / ChatGPT)** inside Discord. The plugin talks to the CLI already signed in on your machine. No API key, no tokens in Discord’s renderer.
 
-Works on **Discord Desktop** and **Vesktop**. It does **not** run in Vencord Web.
+Works on **Discord Desktop**, **Vesktop**, and **Equibop**. It does **not** run in Equicord / Vencord Web.
+
+This is a **userplugin**, not an official Equicord plugin. Install it under `src/userplugins/` as documented at [docs.equicord.org/plugins](https://docs.equicord.org/plugins).
 
 The UI language is **English** by default. In settings you can switch to Magyar, Deutsch, or Español — that changes the plugin UI, error messages (including timeouts), and the language the model replies in.
 
 ![AI chat window](docs/screenshots/chat-window.png)
+
+---
+
+## Equicord layout
+
+Equicord only loads userplugins from `src/userplugins/<camelCaseFolder>/index.ts(x)`. Official plugins go in `src/equicordplugins/`; Vencord-sourced plugins go in `src/plugins/`. **Do not put this repo in those folders.**
+
+| Path | Valid? |
+| --- | --- |
+| `src/userplugins/aiPlugin/index.tsx` | Yes — required layout |
+| `src/userplugins/aiPlugin.desktop/index.tsx` | Yes — same plugin, hidden on Equicord Web |
+| `src/userplugins/AI-Plugin/…` | No — hyphen / PascalCase folder (Equicord troubleshooting: “folder name is not camelCase”) |
+| `src/userplugins/index.tsx` | No — missing plugin folder |
+| `src/equicordplugins/aiPlugin/…` | No — official Equicord tree only |
+
+This repo **is** the plugin folder: it already has `index.tsx` (renderer) and `native.ts` (Electron main / Node). Clone it so the folder name is `aiPlugin`.
+
+```text
+src/userplugins/aiPlugin/
+  index.tsx      required entry
+  native.ts      desktop CLI (Grok / Codex)
+  README.md
+  …
+```
 
 ---
 
@@ -67,10 +93,12 @@ Provider, model, language, icon, fact-check depth, paths, updates.
 
 | What | Why |
 | --- | --- |
-| Equicord or Vencord **source tree** | Userplugins only load after a source build. The installer `.asar` cannot load this plugin. |
-| Discord Desktop or Vesktop | The CLI runs in Electron’s main process. |
+| Equicord (or Vencord) **built from source** | Userplugins are bundled at `pnpm build`. The installer `.asar` cannot load this plugin. Follow [Building from Source](https://docs.equicord.org/building-from-source) first. |
+| Discord Desktop, Vesktop, or Equibop | `native.ts` runs in Electron’s main process. |
 | [Grok CLI](https://x.ai/cli) and `grok login` | SuperGrok / X Premium+. Needed if the provider is Grok. |
 | Codex CLI and `codex login` | ChatGPT / Codex desktop app, or `npm i -g @openai/codex`. Needed if the provider is Codex. |
+
+Equicord does **not** provide support for userplugins or dev builds. Ask in developer channels only if needed.
 
 ### Grok
 
@@ -99,28 +127,130 @@ Codex uses `%USERPROFILE%\.codex\auth.json`. Access tokens stay on disk and are 
 
 ## Install
 
-Windows examples use **cmd.exe**.
+Follow [Installing User Plugins](https://docs.equicord.org/plugins). You must already have an Equicord source tree from [Building from Source](https://docs.equicord.org/building-from-source).
 
-Do **not** paste `$env:USERPROFILE` into cmd. That is PowerShell. venpm would save the `$env:…` text as the folder path and `git clone` would fail with `could not create leading directories`.
+Windows examples below use **cmd.exe**. Do **not** paste `$env:USERPROFILE` into cmd. That is PowerShell.
 
-### venpm (recommended)
+### 1. Create `src/userplugins/`
 
-[venpm](https://venpm.dev) clones the plugin into `src\userplugins\AI-Plugin` and rebuilds the client. Index format: [Your First Plugin](https://venpm.dev/author/your-first-plugin.html).
+This folder does not exist by default.
 
-Close Discord completely (tray icon too). Then:
+macOS / Linux:
+
+```sh
+cd "$HOME/Documents/Equicord"   # or wherever you cloned Equicord
+mkdir -p src/userplugins
+```
+
+Windows (cmd):
+
+```bat
+cd /d "%USERPROFILE%\Documents\Equicord"
+if not exist src\userplugins mkdir src\userplugins
+```
+
+Do not use `mkdir … -Force` in cmd. `-Force` is a PowerShell flag and creates a folder named `-Force`.
+
+### 2. Clone this plugin as `aiPlugin`
+
+The folder name must be **camelCase**.
+
+macOS / Linux:
+
+```sh
+git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src/userplugins/aiPlugin
+```
+
+Windows (cmd):
+
+```bat
+if not exist src\userplugins\aiPlugin git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\aiPlugin
+```
+
+Valid: `src/userplugins/aiPlugin/index.tsx`  
+Invalid: `src/userplugins/AI-Plugin/…`, a nested extra folder, or an entry file that is not `index.ts` / `index.tsx`.
+
+Already cloned as `AI-Plugin` or `grokAi`? Rename, then rebuild:
+
+```sh
+mv src/userplugins/AI-Plugin src/userplugins/aiPlugin
+```
+
+```bat
+ren src\userplugins\AI-Plugin aiPlugin
+```
+
+Keep only one of those folders so the plugin is not loaded twice.
+
+Optional: clone as `src/userplugins/aiPlugin.desktop` instead. Equicord then treats it as desktop-only and hides it from web builds.
+
+### 3. Rebuild Equicord
+
+From the Equicord root (not the plugin folder):
+
+```sh
+pnpm build
+```
+
+Developer tools / PatchHelper:
+
+```sh
+pnpm build --dev
+```
+
+Watch mode while you edit the plugin:
+
+```sh
+pnpm build --watch
+```
+
+If `pnpm` is missing: `npm i -g pnpm`, then `pnpm install --no-frozen-lockfile` in the Equicord folder (see the Equicord build guide). Do **not** run that in an administrator terminal on Windows.
+
+If this Equicord tree already uses `corepack` / bun:
+
+```bat
+corepack pnpm@11.20.0 install
+corepack pnpm@11.20.0 run build
+```
+
+```bat
+bun install
+bun run build
+```
+
+If bun cannot link `@vencord/discord-types`, use `corepack pnpm@11.20.0` instead.
+
+### 4. Restart Discord
+
+Fully quit Discord (tray icon too), start it again, then:
+
+**Settings → Plugins → AI-Plugin → Enable**
+
+Also enable these API plugins if they appear separately:
+
+- Chat Input Button API
+- Message Popover API
+- Commands API
+- Header Bar API
+
+`HeaderBarAPI` is the channel-header AI button (read-only channels).
+
+### venpm
+
+[venpm](https://venpm.dev) clones into `src/userplugins/aiPlugin` and rebuilds. Close Discord first.
 
 ```bat
 npm.cmd install -g @kamaras/venpm
 venpm doctor
-venpm config set vencord.path %USERPROFILE%\Equicord
+venpm config set vencord.path %USERPROFILE%\Documents\Equicord
 venpm repo add https://github.com/TheRealMagyar/Vencord-ai-plugin/releases/latest/download/plugins.json --name ai-plugin
-venpm install AI-Plugin
+venpm install aiPlugin
 ```
 
-If the source tree is under Documents:
+If Equicord is not under Documents:
 
 ```bat
-venpm config set vencord.path %USERPROFILE%\Documents\GitHub\Equicord
+venpm config set vencord.path %USERPROFILE%\Equicord
 ```
 
 Vencord instead of Equicord: point `vencord.path` at that folder.
@@ -128,60 +258,18 @@ Vencord instead of Equicord: point `vencord.path` at that folder.
 PowerShell (only if you are actually in PowerShell):
 
 ```powershell
-venpm config set vencord.path "$env:USERPROFILE\Equicord"
+venpm config set vencord.path "$env:USERPROFILE\Documents\Equicord"
 ```
-
-Then start Discord → **Settings → Plugins → AI-Plugin → Enable**.
-
-Also enable the plugin APIs this plugin depends on, if they are listed separately:
-
-- Chat Input Button API
-- Message Popover API
-- Commands API
-- Header Bar API
-
-### Manual (no venpm)
-
-Close Discord. In cmd:
-
-```bat
-cd /d "%USERPROFILE%\Equicord"
-if not exist src\userplugins mkdir src\userplugins
-if not exist src\userplugins\AI-Plugin git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\AI-Plugin
-corepack pnpm@11.20.0 install
-corepack pnpm@11.20.0 run build
-```
-
-If `bun` already works on that tree:
-
-```bat
-bun install
-bun run build
-```
-
-If bun cannot link `@vencord/discord-types`, use `corepack pnpm@11.20.0` instead. You do not need a global pnpm install.
-
-Do not use `mkdir … -Force` in cmd. `-Force` is a PowerShell flag and creates a folder named `-Force`.
 
 ### Inject Discord (first time)
 
-If Equicord / Vencord is not patched into Discord yet:
+If Equicord is not patched into Discord yet, from the Equicord root ([Building from Source](https://docs.equicord.org/building-from-source)):
 
-```bat
-cd /d "%USERPROFILE%\Equicord"
-set EQUICORD_USER_DATA_DIR=%CD%
-set EQUICORD_DIRECTORY=%CD%\dist\desktop
-set EQUICORD_DEV_INSTALL=1
-dist\Installer\EquilotlCli.exe -install -branch stable
+```sh
+pnpm inject
 ```
 
-If `resources\app.asar` is a **directory**, set `index.js` inside it to:
-
-```js
-require("C:\\Users\\User\\Equicord\\dist\\desktop\\patcher.js");
-```
-
-Use the real path of **your** Equicord / Vencord `dist\desktop\patcher.js`.
+Then start Discord normally. You only need to inject again if Discord is not already patched.
 
 ---
 
@@ -190,7 +278,7 @@ Use the real path of **your** Equicord / Vencord `dist\desktop\patcher.js`.
 ### venpm
 
 ```bat
-venpm update AI-Plugin
+venpm update aiPlugin
 ```
 
 ### Plugin UI
@@ -203,16 +291,29 @@ Restart Discord after a successful update.
 
 ### Manual git
 
+macOS / Linux:
+
+```sh
+cd "$HOME/Documents/Equicord"
+git -C src/userplugins/aiPlugin fetch origin
+git -C src/userplugins/aiPlugin reset --hard origin/main
+pnpm build
+```
+
+Windows (cmd):
+
 ```bat
-cd /d "%USERPROFILE%\Equicord"
-git -C src\userplugins\AI-Plugin fetch origin
-git -C src\userplugins\AI-Plugin reset --hard origin/main
-corepack pnpm@11.20.0 run build
+cd /d "%USERPROFILE%\Documents\Equicord"
+git -C src\userplugins\aiPlugin fetch origin
+git -C src\userplugins\aiPlugin reset --hard origin/main
+pnpm build
 ```
 
 `git reset --hard` makes GitHub win over local edits in the plugin folder.
 
-Older clones may still live in `src\userplugins\grokAi`. The updater looks for both `AI-Plugin` and `grokAi`. Keep only one folder so the plugin is not loaded twice.
+Equicord’s own `git pull` does **not** update userplugins. Only the plugin folder (or venpm / **Update now**) does.
+
+The in-plugin updater looks for `aiPlugin`, `aiPlugin.desktop`, `AI-Plugin`, and `grokAi`. Keep only one folder so the plugin is not loaded twice.
 
 ---
 
@@ -310,7 +411,7 @@ Authors / other users can add this repo with:
 
 ```bat
 venpm repo add https://github.com/TheRealMagyar/Vencord-ai-plugin/releases/latest/download/plugins.json --name ai-plugin
-venpm install AI-Plugin
+venpm install aiPlugin
 ```
 
 `plugins.json` lives at the repo root and is published as a GitHub Release asset (`latest`) on every push to `main`. See [venpm.dev](https://venpm.dev).
@@ -336,15 +437,17 @@ Sessions are resumed per channel and per provider (`--resume` / `codex exec resu
 | `could not create leading directories of '$env:USERPROFILE\…'` | You ran a PowerShell path in **cmd**. Fix: `venpm config set vencord.path %USERPROFILE%\Equicord` |
 | CLI not installed | Install Grok or Codex, then restart Discord |
 | No active subscription | `grok login` or `codex login` |
+| Plugin missing from Settings | Folder must be `src/userplugins/aiPlugin` (camelCase) with `index.tsx`. Rebuild (`pnpm build`) and fully restart Discord. See [Equicord troubleshooting](https://docs.equicord.org/plugins). |
 | No chat-bar button | Enable **AI-Plugin**; turn on Chat Input Button API; rebuild; restart Discord |
 | No header AI button | Enable Header Bar API; rebuild; restart Discord |
 | `/ai` missing | Enable Commands API; restart after build |
 | Timed out | Use a quicker **Fact-check depth**, or retry |
 | Discord crashes when opening AI from a channel | Update to the latest plugin, rebuild, restart |
 | Inject / `app.asar` errors | Close Discord completely (tray included) and inject again |
+| `pnpm build` missing packages | `pnpm install` in the Equicord root, then build again |
 | bun cannot link `@vencord/discord-types` | `corepack pnpm@11.20.0 install` |
-| Plugin listed twice | Both `src\userplugins\grokAi` and `src\userplugins\AI-Plugin` exist. Keep one |
-| Update cannot find the folder | Plugin must be a git clone named `AI-Plugin` or `grokAi` under `src\userplugins` |
+| Plugin listed twice | More than one of `aiPlugin`, `AI-Plugin`, `grokAi` exists under `src/userplugins`. Keep `aiPlugin` only |
+| Update cannot find the folder | Plugin must be a git clone named `aiPlugin` (or the older `AI-Plugin` / `grokAi`) under `src/userplugins` |
 
 Desktop and Vesktop only.
 

@@ -110,10 +110,10 @@ const dict = {
         es: "Tiempo agotado: {command}",
     },
     updateFolderMissing: {
-        en: "Could not find the AI-Plugin git folder (src/userplugins/AI-Plugin or grokAi).",
-        hu: "Nem találom az AI-Plugin git mappát (src/userplugins/AI-Plugin vagy grokAi).",
-        de: "AI-Plugin-Git-Ordner nicht gefunden (src/userplugins/AI-Plugin oder grokAi).",
-        es: "No se encontró la carpeta git de AI-Plugin (src/userplugins/AI-Plugin o grokAi).",
+        en: "Could not find the AI-Plugin git folder (src/userplugins/aiPlugin, AI-Plugin, or grokAi).",
+        hu: "Nem találom az AI-Plugin git mappát (src/userplugins/aiPlugin, AI-Plugin vagy grokAi).",
+        de: "AI-Plugin-Git-Ordner nicht gefunden (src/userplugins/aiPlugin, AI-Plugin oder grokAi).",
+        es: "No se encontró la carpeta git de AI-Plugin (src/userplugins/aiPlugin, AI-Plugin o grokAi).",
     },
     updateNoBuild: {
         en: "Source updated, but the Equicord/Vencord build was not found. Run the build command.",

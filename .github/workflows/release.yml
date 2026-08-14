@@ -30,7 +30,7 @@ jobs:
             npm.cmd install -g @kamaras/venpm
             venpm config set vencord.path %USERPROFILE%\Equicord
             venpm repo add https://github.com/TheRealMagyar/Vencord-ai-plugin/releases/latest/download/plugins.json --name ai-plugin
-            venpm install AI-Plugin
+            venpm install aiPlugin
             ```
 
             Restart Discord after install or update.
