@@ -4,7 +4,7 @@ Local **Grok (xAI)** or **Codex (OpenAI / ChatGPT)** inside Discord. The plugin 
 
 Works on **Discord Desktop** and **Vesktop**. It does **not** run in Vencord Web.
 
-The UI language is **English** by default. Switch it in settings (Magyar, Deutsch, Español) to change the plugin UI and the language the model replies in.
+The UI language is **English** by default. In settings you can switch to Magyar, Deutsch, or Español — that changes the plugin UI, error messages (including timeouts), and the language the model replies in.
 
 ![AI chat window](docs/screenshots/chat-window.png)
 
@@ -15,16 +15,18 @@ The UI language is **English** by default. Switch it in settings (Magyar, Deutsc
 | Area | What you get |
 | --- | --- |
 | Chat bar | AI button next to GIF / sticker / Nitro |
-| Channel header | AI button next to search / pins (works in read-only channels) |
+| Channel header | AI button next to search / pins — works in **read-only** channels where you cannot type |
+| Channel menu | Right-click a channel / thread / group DM → **Open AI** |
 | Messages | Hover and right-click: **Explain with AI**, **Fact-check with AI** |
-| Commands | `/ai` (optional question), `/aiupdate` |
-| History | Saved per Discord channel / DM, listed in the left sidebar |
+| Chat window | Per-channel history, left sidebar of saved chats, live thinking / tools, **Stop** |
 | Background CLI | Grok / Codex status is checked when Discord starts, not when you open the window |
-| Background jobs | Closing the window does not stop a running reply; reopen to see thinking and tools |
-| Stop | Interrupt a running reply; partial text is kept |
-| Thinking | Optional live reasoning and tool use (web search, etc.) |
-| Fact-check | Quick / Balanced / Deep depth in settings |
+| Background jobs | Closing the window does not stop a running reply |
+| Notifications | If the window is closed when a reply finishes, you get a toast (click the Vencord notice to reopen that chat) |
+| Stop | Interrupt a running reply; any text already written is kept |
+| Thinking | Optional live reasoning and tool use (web search, page fetch, etc.) |
+| Fact-check | Quick / Balanced / Deep — see [Fact-check](#fact-check) |
 | Context | Optional nearby Discord transcript (`>>>` marks the target message) |
+| Commands | `/ai` (optional question), `/aiupdate` |
 | Providers | Grok CLI or Codex CLI |
 | Models | Grok 4.6 / 4.5, or GPT-5.6 Sol–Luna / 5.5 / 5.4 / 5.4-Mini |
 | Language | English (default), Magyar, Deutsch, Español |
@@ -43,13 +45,13 @@ AI button next to GIF / sticker / Nitro.
 
 ### Chat window
 
-Per-channel history, sidebar of saved chats, thinking / tools, Stop.
+Sidebar of saved chats, per-channel history, thinking / tools, Stop.
 
 ![AI chat window](docs/screenshots/chat-window.png)
 
 ### Explain / Fact-check with AI
 
-Message hover and context menu. Fact-check uses Grok web search (depth is a setting).
+Message hover and context menu.
 
 ![Explain with AI](docs/screenshots/explain.png)
 
@@ -219,23 +221,49 @@ Older clones may still live in `src\userplugins\grokAi`. The updater looks for b
 | Action | How |
 | --- | --- |
 | Open the AI chat | Chat bar AI button, channel header AI button, right-click the channel → **Open AI**, or `/ai` with no text |
-| Ask in the current channel | `/ai` + your question (reply is posted as a bot message) |
+| Ask in the current channel | `/ai` + your question (the reply is posted as a bot message) |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Stop a running reply | **Stop** in the chat composer |
-| Done while closed | Bottom toast when explain / fact-check / chat finishes |
-| Switch saved chats | Left sidebar; delete with × (disabled while that chat is thinking) |
+| Done while the window is closed | Bottom toast; click the Vencord notification to reopen that chat |
+| Switch saved chats | Left sidebar |
+| Delete a saved chat | × on the sidebar row (disabled while that chat is thinking) |
 | Update the plugin | `/aiupdate` |
 
-The plugin connects to the Grok / Codex CLI in the background when Discord starts, so opening the AI window does not wait on a fresh handshake.
-
-The chat window keeps history **per Discord channel or DM**. Closing the window does not stop a running reply — reopen it to see thinking and tool progress. When a reply finishes while the window is closed, Discord shows a bottom toast (click the Vencord notification to reopen that chat). **Stop** interrupts the current run. The left sidebar lists channels / DMs that already have AI history. A running chat shows a spinner and cannot be deleted until it finishes or is stopped.
-
-Turn on **Show thinking** (settings or the toolbar toggle) to watch Grok / Codex reason and use tools such as web search while they work. The final answer stays separate from that trace.
-
-If **Include channel context** is on, the AI can use recent messages for summaries, explain, and fact-check (the target message is marked with `>>>`).
-
 Enter sends. Shift+Enter inserts a new line.
+
+---
+
+## Chat window
+
+The plugin connects to the Grok / Codex CLI **in the background when Discord starts**, so opening the window does not wait on a handshake.
+
+| Piece | Behavior |
+| --- | --- |
+| Left sidebar | Every channel / DM that already has AI history. A spinner means that chat is still running. |
+| Delete | × on a sidebar row. You cannot delete a chat while it is thinking — stop it first, or wait. |
+| History | Saved **per Discord channel or DM**. **Clear history** only clears the open thread. |
+| Thinking | Toolbar toggle (and a setting). Shows reasoning and tool steps (web search, etc.) live. The final answer stays in its own bubble. |
+| Stop | Kills the local CLI process. Any text already streamed is kept; otherwise the chat shows **Stopped.** |
+| Background | Closing the window does **not** stop a running reply. Reopen the same channel to see thinking / tools / the answer. |
+| Notifications | If a reply finishes while the window is closed, Discord shows a toast. The Vencord notification reopens that chat. |
+| Copy / Insert | On finished assistant messages: copy, or insert into the Discord input box. |
+
+---
+
+## Fact-check
+
+Fact-check always uses web search on Grok. Depth is a setting:
+
+| Depth | What it does | Time limit |
+| --- | --- | --- |
+| **Quick** | 1 search, short verdict | 90s |
+| **Balanced** (default) | At most 2 searches, no page fetch | 150s |
+| **Deep** | More searches + read key sources | 240s |
+
+If the limit is hit, any text already written is shown instead of only an error.
+
+If **Include channel context** is on, nearby messages are attached (the target is marked with `>>>`).
 
 ---
 
@@ -246,12 +274,12 @@ Enter sends. Shift+Enter inserts a new line.
 | Provider | Grok (xAI) or Codex (OpenAI / ChatGPT) |
 | AI icon | Default, Grok, OpenAI, Atom, or Custom SVG |
 | Custom SVG | Shown only when the icon is Custom SVG |
-| Language | English (default), Magyar, Deutsch, Español — UI and model reply language |
+| Language | English (default), Magyar, Deutsch, Español — UI, errors, and model replies |
 | Grok model | `grok-4.6` (default) or `grok-4.5`. Hidden when Codex is selected |
 | Codex model | CLI default, GPT-5.6 Sol / Terra / Luna, GPT-5.5, 5.4, 5.4-Mini. Hidden when Grok is selected |
-| Allow web search | Grok only, for normal chat |
+| Allow web search | Grok only, for **normal chat** (fact-check has its own search) |
 | Show thinking | Live thinking + tool use (Grok and Codex) |
-| Fact-check depth | Quick (1 search), Balanced (2 searches, default), or Deep (search + read sources) |
+| Fact-check depth | Quick, Balanced (default), or Deep |
 | Include channel context | Attach Discord history for summaries, explain, and fact-check |
 | Grok / Codex path | Optional override if auto-detect fails |
 | Auto update | Pull from GitHub when Discord starts |
@@ -297,7 +325,7 @@ venpm install AI-Plugin
 2. Reads local login metadata from `auth.json`. Access tokens are never sent to the renderer.
 3. Runs a headless turn in an isolated temp directory (`grok --prompt-file` or `codex exec --json`), with file / shell tools disabled.
 
-Sessions are resumed per channel and per provider (`--resume` / `codex exec resume`). CLI status is cached in the renderer after a background probe on Discord start.
+Sessions are resumed per channel and per provider (`--resume` / `codex exec resume`). CLI status is cached after a background probe on Discord start (and refreshed about every 5 minutes).
 
 ---
 
@@ -312,6 +340,7 @@ Sessions are resumed per channel and per provider (`--resume` / `codex exec resu
 | No header AI button | Enable Header Bar API; rebuild; restart Discord |
 | `/ai` missing | Enable Commands API; restart after build |
 | Timed out | Use a quicker **Fact-check depth**, or retry |
+| Discord crashes when opening AI from a channel | Update to the latest plugin, rebuild, restart |
 | Inject / `app.asar` errors | Close Discord completely (tray included) and inject again |
 | bun cannot link `@vencord/discord-types` | `corepack pnpm@11.20.0 install` |
 | Plugin listed twice | Both `src\userplugins\grokAi` and `src\userplugins\AI-Plugin` exist. Keep one |
