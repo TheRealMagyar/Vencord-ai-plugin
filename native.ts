@@ -531,10 +531,11 @@ export async function applyUpdate(_event: unknown): Promise<UpdateResult> {
     }
 
     try {
+        await git(pluginDir, "fetch origin");
         try {
-            await git(pluginDir, "pull --ff-only origin main");
+            await git(pluginDir, "reset --hard origin/main");
         } catch {
-            await git(pluginDir, "pull --ff-only");
+            await git(pluginDir, "reset --hard @{u}");
         }
 
         const host = findHostRoot(pluginDir);
