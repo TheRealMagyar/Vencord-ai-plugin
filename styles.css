@@ -2,8 +2,10 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    min-height: 460px;
-    max-height: min(72vh, 680px);
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 380px;
+    max-height: min(64vh, 580px);
     overflow: hidden;
 }
 
@@ -91,8 +93,9 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 4px 6px 8px 0;
-    min-height: 300px;
+    padding: 4px 2px 8px;
+    min-height: 280px;
+    min-width: 0;
 }
 
 .vc-grokai-empty {
@@ -203,37 +206,68 @@
 
 .vc-grokai-composer {
     display: flex;
+    align-items: center;
     gap: 8px;
-    align-items: flex-end;
-    padding: 10px;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 6px 8px;
     border-radius: 12px;
     background: var(--input-background, var(--background-secondary));
     border: 1px solid var(--input-border, var(--background-modifier-accent));
 }
 
 .vc-grokai-input {
-    flex: 1;
-    resize: none;
-    min-height: 44px;
+    all: unset;
+    box-sizing: border-box !important;
+    display: block;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 36px;
     max-height: 120px;
-    padding: 8px 4px;
-    border: 0;
-    background: transparent;
+    margin: 0 !important;
+    padding: 8px 10px !important;
+    border: 0 !important;
+    background: transparent !important;
     color: var(--text-default, var(--text-normal));
-    font: inherit;
+    font-family: var(--font-primary, inherit);
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 20px;
+    letter-spacing: normal;
+    text-indent: 0 !important;
+    text-align: start;
+    white-space: pre-wrap;
+    overflow-x: hidden;
+    overflow-y: auto;
+    resize: none;
     outline: none;
 }
 
+.vc-grokai-input::placeholder {
+    color: var(--text-muted, var(--text-normal));
+    opacity: 1;
+}
+
 .vc-grokai-send {
+    box-sizing: border-box;
     height: 36px;
+    min-height: 36px;
     padding: 0 14px;
+    margin: 0;
     border: 0;
     border-radius: 8px;
     background: var(--brand-500);
     color: #fff;
     font-weight: 600;
+    line-height: 36px;
     cursor: pointer;
     flex-shrink: 0;
+    align-self: center;
 }
 
 .vc-grokai-send:disabled {

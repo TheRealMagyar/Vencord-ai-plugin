@@ -353,7 +353,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 <div className={cl("composer")}>
                     <textarea
                         className={cl("input")}
-                        rows={2}
+                        rows={1}
                         value={input}
                         disabled={busy || !connected}
                         placeholder={t("placeholder", { provider: providerLabel })}
