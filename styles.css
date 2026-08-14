@@ -6,9 +6,23 @@
     gap: 10px;
     box-sizing: border-box;
     width: 100%;
-    min-height: 360px;
-    max-height: min(70vh, 640px);
+    height: min(62vh, 560px);
+    max-height: calc(100dvh - 168px);
+    min-height: 0;
     overflow: hidden;
+    overscroll-behavior: none;
+}
+
+div:has(> .vc-grokai-root) {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+}
+
+.vc-grokai-modal-scroller,
+.vc-grokai-modal-scroller [class*="scroller"],
+.vc-grokai-modal-scroller [class*="content"] {
+    overflow: hidden !important;
+    overscroll-behavior: none;
 }
 
 .vc-grokai-root,
@@ -183,7 +197,9 @@
 .vc-grokai-messages {
     flex: 1 1 auto;
     min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     gap: 14px;
