@@ -9,7 +9,6 @@ import "./styles.css";
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
-import { IS_WEB } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { Message } from "@vencord/discord-types";
 import { ChannelStore, Menu, useEffect, useState } from "@webpack/common";
@@ -20,8 +19,8 @@ import { settings } from "./settings";
 import type { GrokStatus } from "./types";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
-const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat }) => {
-    if (!isMainChat) return null;
+const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat, isAnyChat }) => {
+    if (isMainChat === false && isAnyChat === false) return null;
 
     return (
         <ChatBarButton
@@ -70,7 +69,19 @@ function SettingsAbout() {
             });
             return;
         }
-        Native.getStatus(grokPath || undefined).then(setStatus);
+        Native.getStatus(grokPath || undefined).then(setStatus).catch(error => {
+            setStatus({
+                installed: false,
+                authenticated: false,
+                grokPath: null,
+                version: null,
+                displayName: null,
+                subscription: null,
+                authMode: null,
+                expiresAt: null,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        });
     }, [grokPath]);
 
     return (
@@ -92,10 +103,10 @@ export default definePlugin({
     authors: [{ name: "TheRealMagyar", id: 0n }],
     searchTerms: ["Grok", "xAI", "AI", "ChatGPT", "explain"],
     tags: ["Chat", "Utility"],
+    dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI"],
     settings,
     settingsAboutComponent: SettingsAbout,
     requiresRestart: true,
-    hidden: IS_WEB,
 
     contextMenus: {
         message: messageCtxPatch,

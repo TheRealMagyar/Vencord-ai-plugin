@@ -121,25 +121,28 @@ export async function getStatus(_event: unknown, customPath?: string): Promise<G
     }
 
     try {
-        const { stdout } = await runFile(grokPath, ["models"], PROBE_TIMEOUT_MS);
-        modelsOut = stdout;
+        const { stdout, stderr } = await runFile(grokPath, ["models"], PROBE_TIMEOUT_MS);
+        modelsOut = `${stdout}\n${stderr}`;
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return {
-            installed: true,
-            authenticated: false,
-            grokPath,
-            version,
-            displayName: auth.displayName ?? null,
-            subscription: null,
-            authMode: auth.authMode ?? null,
-            expiresAt: auth.expiresAt ?? null,
-            error: `A Grok CLI nem tudott bejelentkezni: ${message}. Futtasd: grok login`,
-        };
+        const err = error as { stdout?: string; stderr?: string; message?: string; };
+        modelsOut = `${err.stdout ?? ""}\n${err.stderr ?? ""}`;
+        if (!modelsOut.trim() && !auth.present && !process.env.XAI_API_KEY) {
+            return {
+                installed: true,
+                authenticated: false,
+                grokPath,
+                version,
+                displayName: auth.displayName ?? null,
+                subscription: null,
+                authMode: auth.authMode ?? null,
+                expiresAt: auth.expiresAt ?? null,
+                error: `A Grok CLI nem tudott bejelentkezni: ${err.message ?? "unknown"}. Futtasd: grok login`,
+            };
+        }
     }
 
     const subscription = subscriptionFromModelsOutput(modelsOut, auth.present);
-    const authenticated = Boolean(subscription) && !/not logged in|sign in|please log/i.test(modelsOut);
+    const authenticated = Boolean(subscription) && !/not logged in|please log in|sign in to grok/i.test(modelsOut);
 
     return {
         installed: true,

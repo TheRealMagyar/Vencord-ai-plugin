@@ -36,38 +36,32 @@ grok models
 
 Ha ezt látod: `You are logged in with grok.com.` — a plugin is ezt észleli.
 
-## Telepítés Vencordra
+## Telepítés (globális pnpm nem kell)
 
-A Vencord forrásban:
-
-```powershell
-cd C:\path\to\Vencord
-mkdir src\userplugins -Force
-cd src\userplugins
-git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git grokAi
-cd ..\..
-pnpm install
-pnpm build
-pnpm inject
-```
-
-Indítsd újra a Discordot. Settings → Vencord → Plugins → **GrokAi** → Enable.
-
-## Telepítés Equicordra
-
-Ugyanaz, csak az Equicord mappában:
+Az Equicord `link:` workspace csomagokat használ, ezért **bun / npm nem elég**. A Node-dal jövő **corepack** futtatja a pnpm-et, nem kell külön telepíteni:
 
 ```powershell
-cd C:\path\to\Equicord
+cd $env:USERPROFILE\Equicord
 mkdir src\userplugins -Force
-cd src\userplugins
-git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git grokAi
-cd ..\..
-pnpm install
-pnpm build
+git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\grokAi
+corepack pnpm@11.20.0 install
+corepack pnpm@11.20.0 run build
 ```
 
-Equicord Settings → Plugins → Userplugins → **GrokAi**.
+Ha a Discord be van zárva:
+
+```powershell
+$env:EQUICORD_USER_DATA_DIR = "$pwd"
+$env:EQUICORD_DIRECTORY = "$pwd\dist\desktop"
+$env:EQUICORD_DEV_INSTALL = "1"
+.\dist\Installer\EquilotlCli.exe -install -branch stable
+```
+
+Ha az injector elhasal (`app.asar` mappa), a `resources\app.asar\index.js` mutasson ide:
+
+`C:\Users\User\Equicord\dist\desktop\patcher.js`
+
+Indítsd a Discordot. Settings → Plugins → **GrokAi** → Enable.
 
 ## Beállítások
 
@@ -92,7 +86,7 @@ A beszélgetés sessionjét a CLI tartja (`--resume`).
 
 - **„A Grok CLI nincs telepítve”** — futtasd az installert, majd Discord restart
 - **„Nincs aktív Grok előfizetés”** — `grok login`, ellenőrizd: `grok models`
-- A gomb nem jelenik meg — plugin be van kapcsolva? Discord újraindult a `pnpm build` után?
+- A gomb nem jelenik meg — plugin be van kapcsolva? Discord újraindult a `bun run build` után?
 - Csak asztali kliens. Vesktop OK, Vencord Web nem.
 
 ## Licenc
