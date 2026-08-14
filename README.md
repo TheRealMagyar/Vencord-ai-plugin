@@ -4,6 +4,8 @@ Local Grok (xAI) or Codex (OpenAI / ChatGPT) inside Discord. The plugin uses the
 
 Works on **Discord Desktop** and **Vesktop**. It does not run in Vencord Web.
 
+![AI chat window](docs/screenshots/chat-window.png)
+
 ---
 
 ## Features
@@ -113,20 +115,27 @@ Start Discord → **Settings → Plugins → AI-Plugin → Enable**.
 
 ## Screenshots
 
-Drop PNG or WebP files into [`docs/screenshots/`](docs/screenshots/) using the names below. They show up here after you commit.
+### Chat bar
 
-| What | File |
-| --- | --- |
-| Chat bar AI button | `docs/screenshots/chat-bar.png` |
-| AI chat window | `docs/screenshots/chat-window.png` |
-| Explain with AI | `docs/screenshots/explain.png` |
-| Plugin settings | `docs/screenshots/settings.png` |
+AI button next to GIF / sticker / Nitro.
 
 ![Chat bar AI button](docs/screenshots/chat-bar.png)
 
+### Chat window
+
+Per-channel history. Grok or Codex, via the CLI already signed in on your machine.
+
 ![AI chat window](docs/screenshots/chat-window.png)
 
+### Explain with AI
+
+Message hover action and context menu.
+
 ![Explain with AI](docs/screenshots/explain.png)
+
+### Settings
+
+Provider, model, language, icon, and updates.
 
 ![Plugin settings](docs/screenshots/settings.png)
 

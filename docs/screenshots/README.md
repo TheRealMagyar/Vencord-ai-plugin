@@ -1,8 +1,10 @@
 # Screenshots
 
-| Filename | What to capture |
+Used on the [main README](../../README.md).
+
+| File | Shown as |
 | --- | --- |
-| `chat-bar.png` | Discord chat input with the AI button next to GIF / sticker / Nitro |
-| `chat-window.png` | The AI chat modal with a short conversation |
-| `explain.png` | Message hover / context menu **Explain with AI** |
-| `settings.png` | Equicord / Vencord **AI-Plugin** settings |
+| `chat-bar.png` | Chat bar AI button |
+| `chat-window.png` | AI chat modal |
+| `explain.png` | Explain with AI |
+| `settings.png` | Plugin settings |
