@@ -53,15 +53,23 @@ You also need an Equicord or Vencord **source tree**. The installer `.asar` cann
 
 [venpm](https://venpm.dev) installs the plugin into your Equicord / Vencord source tree and rebuilds. Index format: [Your First Plugin](https://venpm.dev/author/your-first-plugin.html).
 
-```powershell
+In **cmd.exe** (`%USERPROFILE%` expands). Do not paste `$env:USERPROFILE` into cmd — venpm will save that text as the path and `git clone` will fail.
+
+```bat
 npm.cmd install -g @kamaras/venpm
 venpm doctor
-venpm config set vencord.path "$env:USERPROFILE\Documents\GitHub\Equicord"
+venpm config set vencord.path %USERPROFILE%\Equicord
 venpm repo add https://github.com/TheRealMagyar/Vencord-ai-plugin/releases/latest/download/plugins.json --name ai-plugin
 venpm install AI-Plugin
 ```
 
-If Equicord lives at `C:\Users\User\Equicord`, set that path instead:
+If the source tree is under Documents:
+
+```bat
+venpm config set vencord.path %USERPROFILE%\Documents\GitHub\Equicord
+```
+
+PowerShell instead of cmd:
 
 ```powershell
 venpm config set vencord.path "$env:USERPROFILE\Equicord"
