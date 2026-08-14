@@ -8,6 +8,7 @@ import { copyWithToast, insertTextIntoChatInputBox } from "@utils/discord";
 import { Message, RenderModalProps } from "@vencord/discord-types";
 import { ChannelStore, Modal, openModal, Parser, SelectedChannelStore, useEffect, useRef, useState } from "@webpack/common";
 
+import { packChannelContext, withTranscript } from "./channelContext";
 import { GrokIcon } from "./GrokIcon";
 import { clearThread, getThreadTitle, loadThread, persistableMessages, saveThread } from "./history";
 import { settings } from "./settings";
@@ -61,7 +62,7 @@ function resolveChannelId(options?: OpenOptions) {
 }
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
-    const { language, model, allowWebSearch, grokPath } = settings.use(["language", "model", "allowWebSearch", "grokPath"]);
+    const { language, model, allowWebSearch, grokPath, includeChannelContext } = settings.use(["language", "model", "allowWebSearch", "grokPath", "includeChannelContext"]);
     const [status, setStatus] = useState<GrokStatus | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
@@ -134,14 +135,27 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         `Explain this message${author ? ` (@${author})` : ""}:\n${content}`,
                         lang,
                     ),
-                    request: () => Native.explainMessage({
-                        content,
-                        author,
-                        channelName: channel?.name,
-                        language: lang,
-                        model,
-                        grokPath: grokPath || undefined,
-                    }),
+                    request: async () => {
+                        const packed = await packChannelContext({
+                            channelId: id,
+                            prompt: content,
+                            aroundId: options.explainMessage!.id,
+                            highlightId: options.explainMessage!.id,
+                            enabled: includeChannelContext,
+                        });
+                        const userPrompt = t(
+                            `Magyarázd el ezt a Discord üzenetet (>>> jelöli). Térj ki a szlengre, hangnemre és a környező beszélgetésre.\nSzerző: ${author || "?"}\nCsatorna: ${channel?.name || title}\nÜzenet:\n${content}`,
+                            `Explain this Discord message (marked with >>>). Cover slang, tone, and nearby conversation.\nAuthor: ${author || "?"}\nChannel: ${channel?.name || title}\nMessage:\n${content}`,
+                            lang,
+                        );
+                        return Native.sendChat({
+                            prompt: withTranscript(userPrompt, packed, "explain"),
+                            sessionId: null,
+                            model,
+                            language: lang,
+                            grokPath: grokPath || undefined,
+                        });
+                    },
                     context: { channelId: id, title },
                 });
                 return;
@@ -231,14 +245,21 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         await ask({
             kind: "chat",
             visible: prompt,
-            request: () => Native.sendChat({
-                prompt,
-                sessionId,
-                model,
-                language: lang,
-                allowWebSearch,
-                grokPath: grokPath || undefined,
-            }),
+            request: async () => {
+                const packed = await packChannelContext({
+                    channelId,
+                    prompt,
+                    enabled: includeChannelContext,
+                });
+                return Native.sendChat({
+                    prompt: withTranscript(prompt, packed, "chat"),
+                    sessionId,
+                    model,
+                    language: lang,
+                    allowWebSearch,
+                    grokPath: grokPath || undefined,
+                });
+            },
         });
     }
 

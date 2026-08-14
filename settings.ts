@@ -30,6 +30,11 @@ export const settings = definePluginSettings({
         description: "Allow Grok to use web search when answering",
         default: false,
     },
+    includeChannelContext: {
+        type: OptionType.BOOLEAN,
+        description: "Grok lekérheti a jelenlegi Discord chat / DM üzeneteit (összefoglaló, explain kontextus)",
+        default: true,
+    },
     grokPath: {
         type: OptionType.STRING,
         description: "Optional custom path to grok.exe / grok (leave empty to auto-detect)",

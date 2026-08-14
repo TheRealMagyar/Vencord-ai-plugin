@@ -13,6 +13,7 @@ import definePlugin from "@utils/types";
 import { Message } from "@vencord/discord-types";
 import { ChannelStore, Menu, showToast, Toasts, useEffect, useState } from "@webpack/common";
 
+import { packChannelContext, withTranscript } from "./channelContext";
 import { openGrokModal } from "./ChatModal";
 import { GrokIcon } from "./GrokIcon";
 import { settings } from "./settings";
@@ -229,8 +230,13 @@ export default definePlugin({
                 }
 
                 sendBotMessage(ctx.channel.id, { content: "Grok gondolkodik…" });
-                const reply = await Native.sendChat({
+                const packed = await packChannelContext({
+                    channelId: ctx.channel.id,
                     prompt: question,
+                    enabled: settings.store.includeChannelContext,
+                });
+                const reply = await Native.sendChat({
+                    prompt: withTranscript(question, packed, "chat"),
                     model: settings.store.model,
                     language: settings.store.language as "auto" | "hu" | "en",
                     allowWebSearch: settings.store.allowWebSearch,
