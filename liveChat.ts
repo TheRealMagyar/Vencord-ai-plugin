@@ -4,15 +4,21 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { showNotification } from "@api/Notifications";
+import { showToast, Toasts } from "@webpack/common";
+
 import { loadThread, persistableMessages, saveThread } from "./history";
 import type { AiProvider, ChatMessage, ChatToolStep, GrokReply } from "./types";
 import { getNative, t } from "./utils";
+
+export type LiveJobKind = "chat" | "explain" | "factcheck";
 
 export interface LiveJob {
     jobId: string;
     channelId: string;
     title: string;
     provider: AiProvider;
+    kind: LiveJobKind;
     cancelled: boolean;
     userMessage: ChatMessage;
     assistantMessage: ChatMessage;
@@ -24,6 +30,45 @@ type Listener = () => void;
 const jobs = new Map<string, LiveJob>();
 const listeners = new Map<string, Set<Listener>>();
 const allListeners = new Set<Listener>();
+let openWindows = 0;
+let openChat: ((channelId: string) => void) | null = null;
+
+export function setChatWindowOpen(open: boolean) {
+    openWindows = Math.max(0, openWindows + (open ? 1 : -1));
+}
+
+export function isChatWindowOpen() {
+    return openWindows > 0;
+}
+
+export function setOpenChatHandler(fn: ((channelId: string) => void) | null) {
+    openChat = fn;
+}
+
+function notifyJobDone(job: LiveJob, ok: boolean) {
+    if (isChatWindowOpen()) return;
+
+    const title = job.title || "Discord";
+    const provider = job.provider === "codex" ? "Codex" : "Grok";
+    const message = !ok
+        ? t("notifyFailed", { provider, title })
+        : job.kind === "explain"
+            ? t("notifyExplainReady", { title })
+            : job.kind === "factcheck"
+                ? t("notifyFactCheckReady", { title })
+                : t("notifyChatReady", { provider, title });
+
+    showToast(message, ok ? Toasts.Type.SUCCESS : Toasts.Type.FAILURE);
+    try {
+        void showNotification({
+            title: message,
+            body: t("notifyOpenHint"),
+            onClick: () => openChat?.(job.channelId),
+        });
+    } catch {
+        // toast is enough
+    }
+}
 
 function jobKey(channelId: string) {
     return channelId || "__none__";
@@ -141,6 +186,7 @@ export async function runLiveChat(opts: {
     channelId: string;
     title: string;
     provider: AiProvider;
+    kind?: LiveJobKind;
     sessionId: string | null;
     visible: string;
     request: (jobId: string) => Promise<GrokReply>;
@@ -154,6 +200,7 @@ export async function runLiveChat(opts: {
         channelId: opts.channelId,
         title: opts.title,
         provider: opts.provider,
+        kind: opts.kind ?? "chat",
         cancelled: false,
         sessionId: opts.sessionId,
         userMessage: { id: nextId(), role: "user", text: opts.visible, at: Date.now() },
@@ -205,6 +252,7 @@ export async function runLiveChat(opts: {
                 : (reply.error || t("unknownError")),
         };
         await persistJob(job);
+        notifyJobDone(job, reply.ok);
     } catch (error) {
         if (job.cancelled) return true;
         job.assistantMessage = {
@@ -215,6 +263,7 @@ export async function runLiveChat(opts: {
             text: error instanceof Error ? error.message : String(error),
         };
         await persistJob(job);
+        notifyJobDone(job, false);
     } finally {
         if (poll) window.clearInterval(poll);
         if (!job.cancelled) jobs.delete(jobKey(opts.channelId));

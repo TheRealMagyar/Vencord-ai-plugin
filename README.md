@@ -223,12 +223,13 @@ Older clones may still live in `src\userplugins\grokAi`. The updater looks for b
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Stop a running reply | **Stop** in the chat composer |
+| Done while closed | Bottom toast when explain / fact-check / chat finishes |
 | Switch saved chats | Left sidebar; delete with × (disabled while that chat is thinking) |
 | Update the plugin | `/aiupdate` |
 
 The plugin connects to the Grok / Codex CLI in the background when Discord starts, so opening the AI window does not wait on a fresh handshake.
 
-The chat window keeps history **per Discord channel or DM**. Closing the window does not stop a running reply — reopen it to see thinking and tool progress. **Stop** interrupts the current run. The left sidebar lists channels / DMs that already have AI history. A running chat shows a spinner and cannot be deleted until it finishes or is stopped.
+The chat window keeps history **per Discord channel or DM**. Closing the window does not stop a running reply — reopen it to see thinking and tool progress. When a reply finishes while the window is closed, Discord shows a bottom toast (click the Vencord notification to reopen that chat). **Stop** interrupts the current run. The left sidebar lists channels / DMs that already have AI history. A running chat shows a spinner and cannot be deleted until it finishes or is stopped.
 
 Turn on **Show thinking** (settings or the toolbar toggle) to watch Grok / Codex reason and use tools such as web search while they work. The final answer stays separate from that trace.
 

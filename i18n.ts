@@ -213,6 +213,36 @@ const dict = {
         de: "Mit KI erklären",
         es: "Explicar con IA",
     },
+    notifyExplainReady: {
+        en: "Explanation ready · {title}",
+        hu: "Magyarázat kész · {title}",
+        de: "Erklärung fertig · {title}",
+        es: "Explicación lista · {title}",
+    },
+    notifyFactCheckReady: {
+        en: "Fact-check ready · {title}",
+        hu: "Tényellenőrzés kész · {title}",
+        de: "Faktenprüfung fertig · {title}",
+        es: "Verificación lista · {title}",
+    },
+    notifyChatReady: {
+        en: "{provider} finished · {title}",
+        hu: "{provider} kész · {title}",
+        de: "{provider} fertig · {title}",
+        es: "{provider} terminó · {title}",
+    },
+    notifyFailed: {
+        en: "{provider} failed · {title}",
+        hu: "{provider} hibázott · {title}",
+        de: "{provider} fehlgeschlagen · {title}",
+        es: "{provider} falló · {title}",
+    },
+    notifyOpenHint: {
+        en: "Click to open the AI chat",
+        hu: "Kattints az AI chat megnyitásához",
+        de: "Klicken, um den KI-Chat zu öffnen",
+        es: "Haz clic para abrir el chat de IA",
+    },
     factCheckWithAi: {
         en: "Fact-check with AI",
         hu: "Tényellenőrzés AI-val",

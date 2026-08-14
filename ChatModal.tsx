@@ -12,7 +12,7 @@ import { packChannelContext, withTranscript } from "./channelContext";
 import { getCachedStatus, refreshCliStatus, subscribeCliStatus } from "./cliStatus";
 import { GrokIcon } from "./GrokIcon";
 import { clearThread, getThreadTitle, listThreads, loadThread } from "./history";
-import { cancelLiveJob, getLiveJob, interruptLiveJob, isChannelBusy, listLiveJobs, mergeLiveMessages, runLiveChat, subscribeAllJobs, subscribeLiveJob } from "./liveChat";
+import { cancelLiveJob, getLiveJob, interruptLiveJob, isChannelBusy, listLiveJobs, mergeLiveMessages, runLiveChat, setChatWindowOpen, setOpenChatHandler, subscribeAllJobs, subscribeLiveJob } from "./liveChat";
 import { settings } from "./settings";
 import type { ChatMessage, ChatToolStep, GrokStatus, StoredThread } from "./types";
 import { resolveLang } from "./i18n";
@@ -109,6 +109,11 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     useEffect(() => {
         const timer = window.setTimeout(() => inputRef.current?.focus(), 40);
         return () => window.clearTimeout(timer);
+    }, []);
+
+    useEffect(() => {
+        setChatWindowOpen(true);
+        return () => setChatWindowOpen(false);
     }, []);
 
     useEffect(() => {
@@ -274,6 +279,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
             channelId: ctxId,
             title: ctxTitle,
             provider: activeProvider,
+            kind: opts.kind,
             sessionId,
             visible: opts.visible,
             request: opts.request,
@@ -558,3 +564,5 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
 export function openGrokModal(options?: OpenOptions) {
     openModal(props => <GrokModal rootProps={props} options={options} />);
 }
+
+setOpenChatHandler(channelId => openGrokModal({ channelId }));
