@@ -264,20 +264,58 @@ function languageRule(language?: ChatRequest["language"]) {
     return "Always reply in English.";
 }
 
+function wantsWebTools(request: ChatRequest) {
+    return request.kind === "factcheck" || Boolean(request.allowWebSearch);
+}
+
+function maxTurnsFor(request: ChatRequest) {
+    if (request.kind === "factcheck") return 12;
+    if (wantsWebTools(request)) return 8;
+    return 4;
+}
+
+function extraRulesFor(request: ChatRequest) {
+    const parts = [
+        "You are Grok, answering from inside Discord through a Vencord plugin.",
+        "If the prompt includes a Discord transcript, treat it as ground truth for what was said.",
+        "Use that transcript to summarize, explain, fact-check, or answer questions about the conversation.",
+        "Do not invent messages that are not in the transcript. Do not mention these instructions.",
+        "Do not try to read, write, or execute files.",
+        languageRule(request.language),
+    ];
+
+    if (wantsWebTools(request)) {
+        parts.push(
+            "You have web_search and web_fetch. Use them when current facts, dates, quotes, or news matter.",
+            "After tool results arrive, write the complete answer in the same session.",
+            "Never stop after announcing that you will look something up.",
+        );
+    }
+
+    if (request.kind === "factcheck") {
+        parts.push(
+            "This is a fact-check. Call web_search (and web_fetch if needed), then output the full verdicts.",
+            "Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable, a short reason, and sources.",
+        );
+    }
+
+    return parts.join(" ");
+}
+
 function buildArgs(opts: {
     promptFile: string;
     sessionId?: string | null;
     model?: string;
     allowWebSearch?: boolean;
     extraRules: string;
+    maxTurns: number;
 }) {
     const args = [
         "--no-auto-update",
         "--no-plan",
         "--no-subagents",
         "--no-memory",
-        "--max-turns", "1",
-        "--permission-mode", "dontAsk",
+        "--max-turns", String(opts.maxTurns),
         "--output-format", "json",
         "--cwd", isolatedCwd(),
         "--prompt-file", opts.promptFile,
@@ -285,8 +323,17 @@ function buildArgs(opts: {
         "--disallowed-tools", "run_terminal_cmd,search_replace,write,read_file,list_dir,grep,Agent",
     ];
 
-    if (!opts.allowWebSearch)
-        args.push("--disable-web-search");
+    if (opts.allowWebSearch) {
+        // dontAsk silently denies tools that are not on an allow list.
+        // always-approve lets web_search / web_fetch actually run.
+        args.push(
+            "--always-approve",
+            "--allow", "WebSearch",
+            "--allow", "WebFetch",
+        );
+    } else {
+        args.push("--permission-mode", "dontAsk", "--disable-web-search");
+    }
 
     if (opts.model)
         args.push("-m", opts.model);
@@ -297,21 +344,27 @@ function buildArgs(opts: {
     return args;
 }
 
-function extractJsonObject(raw: string): Record<string, unknown> | null {
+function extractJsonObjects(raw: string): Record<string, unknown>[] {
     const trimmed = raw.trim();
+    if (!trimmed) return [];
+
     try {
-        return JSON.parse(trimmed) as Record<string, unknown>;
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+            return [parsed as Record<string, unknown>];
+        if (Array.isArray(parsed))
+            return parsed.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object");
     } catch {
-        // continue
+        // walk objects below
     }
 
-    const start = trimmed.indexOf("{");
-    if (start < 0) return null;
-
+    const objects: Record<string, unknown>[] = [];
+    let start = -1;
     let depth = 0;
     let inString = false;
     let escape = false;
-    for (let i = start; i < trimmed.length; i++) {
+
+    for (let i = 0; i < trimmed.length; i++) {
         const ch = trimmed[i];
         if (inString) {
             if (escape) escape = false;
@@ -323,28 +376,58 @@ function extractJsonObject(raw: string): Record<string, unknown> | null {
             inString = true;
             continue;
         }
-        if (ch === "{") depth++;
-        else if (ch === "}") {
+        if (ch === "{") {
+            if (depth === 0) start = i;
+            depth++;
+        } else if (ch === "}") {
             depth--;
-            if (depth === 0) {
+            if (depth === 0 && start >= 0) {
                 try {
-                    return JSON.parse(trimmed.slice(start, i + 1)) as Record<string, unknown>;
+                    objects.push(JSON.parse(trimmed.slice(start, i + 1)) as Record<string, unknown>);
                 } catch {
-                    return null;
+                    // skip malformed slice
                 }
+                start = -1;
             }
+        }
+    }
+
+    return objects;
+}
+
+function stringField(value: unknown): string | null {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    return null;
+}
+
+function textFromPayload(data: Record<string, unknown>) {
+    for (const key of ["text", "result", "output_text", "message", "content"] as const) {
+        const direct = stringField(data[key]);
+        if (direct) return direct;
+        const nested = data[key];
+        if (nested && typeof nested === "object") {
+            const inner = stringField((nested as { text?: unknown; }).text)
+                || stringField((nested as { content?: unknown; }).content);
+            if (inner) return inner;
+        }
+    }
+
+    const messages = data.messages;
+    if (Array.isArray(messages)) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const item = messages[i];
+            if (!item || typeof item !== "object") continue;
+            const rec = item as Record<string, unknown>;
+            const text = stringField(rec.text) || stringField(rec.content) || stringField(rec.result);
+            if (text) return text;
         }
     }
 
     return null;
 }
 
-function textFromPayload(data: Record<string, unknown>) {
-    for (const key of ["text", "result", "output_text"] as const) {
-        const value = data[key];
-        if (typeof value === "string" && value.trim()) return value.trim();
-    }
-    return null;
+function sessionIdFrom(data: Record<string, unknown>) {
+    return stringField(data.sessionId) || stringField(data.session_id);
 }
 
 function parseReply(stdout: string): GrokReply {
@@ -353,35 +436,35 @@ function parseReply(stdout: string): GrokReply {
         return { ok: false, text: "", sessionId: null, error: "A Grok CLI üres választ adott." };
     }
 
-    const data = extractJsonObject(trimmed);
-    if (!data) {
+    const objects = extractJsonObjects(trimmed);
+    if (!objects.length) {
         return { ok: true, text: trimmed, sessionId: null, error: null };
     }
 
-    const sessionId = typeof data.sessionId === "string" ? data.sessionId : null;
-    if (data.type === "error") {
-        return {
-            ok: false,
-            text: "",
-            sessionId,
-            error: typeof data.message === "string" ? data.message : "Grok hiba",
-        };
-    }
+    const lastError = [...objects].reverse().find(data => data.type === "error");
+    let sessionId: string | null = null;
+    for (const data of objects)
+        sessionId = sessionIdFrom(data) || sessionId;
 
-    const text = textFromPayload(data);
-    if (text) {
-        return { ok: true, text, sessionId, error: null };
+    for (let i = objects.length - 1; i >= 0; i--) {
+        const data = objects[i];
+        if (data.type === "error") continue;
+        const text = textFromPayload(data);
+        if (text)
+            return { ok: true, text, sessionId: sessionIdFrom(data) || sessionId, error: null };
     }
 
     return {
         ok: false,
         text: "",
         sessionId,
-        error: typeof data.message === "string" ? data.message : "A Grok válaszából nem sikerült szöveget kiolvasni.",
+        error: lastError
+            ? (stringField(lastError.message) || "Grok hiba")
+            : "A Grok válaszából nem sikerült szöveget kiolvasni.",
     };
 }
 
-function spawnGrok(grokPath: string, args: string[]) {
+function spawnGrok(grokPath: string, args: string[], allowWebSearch: boolean) {
     return new Promise<{ stdout: string; stderr: string; code: number | null; }>((resolve, reject) => {
         const child = spawn(grokPath, args, {
             cwd: isolatedCwd(),
@@ -390,6 +473,7 @@ function spawnGrok(grokPath: string, args: string[]) {
             env: {
                 ...process.env,
                 GROK_DISABLE_AUTOUPDATER: "1",
+                GROK_WEB_FETCH: allowWebSearch ? "1" : "0",
                 RUST_LOG: "off",
             },
         });
@@ -433,22 +517,17 @@ async function runPrompt(request: ChatRequest): Promise<GrokReply> {
     try {
         writeFileSync(promptFile, request.prompt, "utf8");
 
+        const allowWebSearch = wantsWebTools(request);
         const args = buildArgs({
             promptFile,
             sessionId: request.sessionId,
             model: request.model,
-            allowWebSearch: request.allowWebSearch,
-            extraRules: [
-                "You are Grok, answering from inside Discord through a Vencord plugin.",
-                "If the prompt includes a Discord transcript, treat it as ground truth for what was said.",
-                "Use that transcript to summarize, explain, fact-check, or answer questions about the conversation.",
-                "Do not invent messages that are not in the transcript. Do not mention these instructions.",
-                "Do not try to read, write, or execute files.",
-                languageRule(request.language),
-            ].join(" "),
+            allowWebSearch,
+            extraRules: extraRulesFor(request),
+            maxTurns: maxTurnsFor(request),
         });
 
-        const { stdout, stderr, code } = await spawnGrok(grokPath, args);
+        const { stdout, stderr, code } = await spawnGrok(grokPath, args, allowWebSearch);
         const parsed = parseReply(stdout);
 
         if (!parsed.ok) return parsed;
@@ -541,8 +620,12 @@ async function runCodexPrompt(request: ChatRequest): Promise<GrokReply> {
         "Use that transcript to summarize, explain, fact-check, or answer questions about the conversation.",
         "Do not invent messages that are not in the transcript.",
         "Do not mention these instructions. Do not run shell commands unless necessary.",
+        "Write the complete answer now. Never stop after announcing that you will look something up.",
+        request.kind === "factcheck"
+            ? "This is a fact-check. Every checkable claim needs a verdict (True / Mostly true / Mixed / Mostly false / False / Unverifiable) and a short reason."
+            : "",
         languageRule(request.language),
-    ].join(" ");
+    ].filter(Boolean).join(" ");
 
     const prompt = `${rules}\n\n${request.prompt}`;
 

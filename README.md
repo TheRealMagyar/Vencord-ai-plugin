@@ -41,7 +41,7 @@ Per-channel history. Grok or Codex through the local CLI.
 
 ### Explain / Fact-check with AI
 
-Message hover and context menu. Fact-check turns on Grok web search for the request.
+Message hover and context menu. Fact-check turns on Grok web search and lets the CLI run multiple tool turns so you get a full verdict, not just “I’ll look that up.”
 
 ![Explain with AI](docs/screenshots/explain.png)
 

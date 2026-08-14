@@ -34,6 +34,7 @@ export interface ChatRequest {
     grokPath?: string;
     provider?: AiProvider;
     codexPath?: string;
+    kind?: "chat" | "explain" | "factcheck";
 }
 
 export interface ExplainRequest {
@@ -50,6 +51,7 @@ export interface ChatMessage {
     role: "user" | "assistant" | "system";
     text: string;
     pending?: boolean;
+    error?: boolean;
     at?: number;
 }
 

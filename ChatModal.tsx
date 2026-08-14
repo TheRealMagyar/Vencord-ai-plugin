@@ -83,6 +83,9 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const [channelId, setChannelId] = useState("");
     const [threadTitle, setThreadTitle] = useState("Grok");
     const scroller = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
+    const busyRef = useRef(false);
+    const stickToBottom = useRef(true);
     const started = useRef(false);
     const messagesRef = useRef<ChatMessage[]>([]);
     const Native = getNative();
@@ -95,8 +98,22 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         : grokModel;
 
     useEffect(() => {
-        scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+        if (!stickToBottom.current) return;
+        const el = scroller.current;
+        if (el) el.scrollTop = el.scrollHeight;
     }, [messages, busy]);
+
+    useEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.style.height = "0px";
+        el.style.height = `${Math.min(Math.max(el.scrollHeight, 40), 140)}px`;
+    }, [input]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => inputRef.current?.focus(), 40);
+        return () => window.clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         if (started.current) return;
@@ -170,10 +187,11 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             sessionId: null,
                             model: selectedModel,
                             language: lang,
-                            allowWebSearch: kind === "factcheck",
+                            allowWebSearch: kind === "factcheck" || allowWebSearch,
                             grokPath: grokPath || undefined,
                             provider: activeProvider,
                             codexPath: codexPath || undefined,
+                            kind,
                         });
                     },
                     context: { channelId: id, title },
@@ -206,7 +224,8 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         request: () => Promise<{ ok: boolean; text: string; sessionId: string | null; error: string | null; }>;
         context?: { channelId: string; title: string; };
     }) {
-        if (busy) return;
+        if (busyRef.current) return;
+        busyRef.current = true;
         setBusy(true);
 
         const ctxId = opts.context?.channelId || channelId;
@@ -231,6 +250,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 ? {
                     ...msg,
                     pending: false,
+                    error: !reply.ok,
                     at: Date.now(),
                     text: reply.ok
                         ? unwrapReplyText(reply.text)
@@ -246,6 +266,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 ? {
                     ...msg,
                     pending: false,
+                    error: true,
                     at: Date.now(),
                     text: error instanceof Error ? error.message : String(error),
                 }
@@ -255,13 +276,15 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
             setMessages(done);
             await persist(done, sessionId, ctxId, ctxTitle);
         } finally {
+            busyRef.current = false;
             setBusy(false);
+            window.setTimeout(() => inputRef.current?.focus(), 0);
         }
     }
 
     async function onSend() {
         const prompt = input.trim();
-        if (!prompt || !Native || busy) return;
+        if (!prompt || !Native || busyRef.current) return;
         setInput("");
 
         await ask({
@@ -282,6 +305,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     grokPath: grokPath || undefined,
                     provider: activeProvider,
                     codexPath: codexPath || undefined,
+                    kind: "chat",
                 });
             },
         });
@@ -324,7 +348,15 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     </button>
                 </div>
 
-                <div className={cl("messages")} ref={scroller}>
+                <div
+                    className={cl("messages")}
+                    ref={scroller}
+                    onScroll={() => {
+                        const el = scroller.current;
+                        if (!el) return;
+                        stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64;
+                    }}
+                >
                     {messages.length === 0 && (
                         <div className={cl("empty")}>
                             <div className={cl("empty-icon")}>
@@ -343,7 +375,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                                 {msg.role === "user" ? t("you") : providerLabel}
                                 {msg.at ? ` · ${formatTime(msg.at)}` : ""}
                             </div>
-                            <div className={cl("bubble", msg.role, { pending: Boolean(msg.pending) })}>
+                            <div className={cl("bubble", msg.role, { pending: Boolean(msg.pending), error: Boolean(msg.error) })}>
                                 {msg.role === "assistant" && !msg.pending
                                     ? renderMarkdown(msg.text)
                                     : msg.text}
@@ -365,8 +397,9 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     ))}
                 </div>
 
-                <div className={cl("composer")}>
+                <div className={cl("composer", { disabled: busy || !connected })}>
                     <textarea
+                        ref={inputRef}
                         className={cl("input")}
                         rows={1}
                         value={input}
@@ -374,10 +407,10 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         placeholder={t("placeholder", { provider: providerLabel })}
                         onChange={e => setInput(e.currentTarget.value)}
                         onKeyDown={e => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                onSend();
-                            }
+                            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing || e.keyCode === 229)
+                                return;
+                            e.preventDefault();
+                            onSend();
                         }}
                     />
                     <button className={cl("send")} disabled={busy || !connected || !input.trim()} onClick={onSend}>

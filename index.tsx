@@ -275,6 +275,7 @@ export default definePlugin({
                     grokPath: settings.store.grokPath || undefined,
                     provider: settings.store.provider === "codex" ? "codex" : "grok",
                     codexPath: settings.store.codexPath || undefined,
+                    kind: "chat",
                 });
 
                 const text = reply.ok ? reply.text : (reply.error || "AI error");
