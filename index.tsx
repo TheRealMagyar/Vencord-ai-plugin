@@ -25,6 +25,7 @@ migratePluginSettings("AI-Plugin", "GrokAi");
 migratePluginSetting("AI-Plugin", "grokModel", "model");
 
 const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat, isAnyChat, channel }) => {
+    settings.use(["iconSvg"]);
     if (isMainChat === false && isAnyChat === false) return null;
 
     return (
@@ -178,7 +179,7 @@ export default definePlugin({
     },
 
     toolboxActions: {
-        [t("toolboxUpdate")]: () => runPluginUpdate(settings.store.language),
+        "Update AI-Plugin": () => runPluginUpdate(settings.store.language),
     },
 
     contextMenus: {
