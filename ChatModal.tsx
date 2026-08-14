@@ -13,6 +13,7 @@ import { GrokIcon } from "./GrokIcon";
 import { clearThread, getThreadTitle, loadThread, persistableMessages, saveThread } from "./history";
 import { settings } from "./settings";
 import type { ChatMessage, GrokStatus } from "./types";
+import { resolveLang } from "./i18n";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
 interface OpenOptions {
@@ -76,7 +77,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const messagesRef = useRef<ChatMessage[]>([]);
     const Native = getNative();
 
-    const lang = language as "auto" | "hu" | "en";
+    const lang = resolveLang(language);
     const activeProvider = (provider === "codex" ? "codex" : "grok") as "grok" | "codex";
     const providerLabel = activeProvider === "codex" ? "Codex" : "Grok";
     const selectedModel = activeProvider === "codex"
@@ -117,11 +118,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     subscription: null,
                     authMode: null,
                     expiresAt: null,
-                    error: t(
-                        "Ez a plugin csak asztali Discordon / Vesktopon működik (helyi Grok vagy Codex CLI kell).",
-                        "This plugin only works on desktop Discord / Vesktop (local Grok or Codex CLI required).",
-                        lang,
-                    ),
+                    error: t("desktopOnly"),
                 });
                 return;
             }
@@ -137,11 +134,10 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 const channel = ChannelStore.getChannel(options.explainMessage.channel_id);
                 await ask({
                     kind: "explain",
-                    visible: t(
-                        `Magyarázd el ezt az üzenetet${author ? ` (@${author})` : ""}:\n${content}`,
-                        `Explain this message${author ? ` (@${author})` : ""}:\n${content}`,
-                        lang,
-                    ),
+                    visible: t("explainVisible", {
+                        author: author ? ` (@${author})` : "",
+                        content,
+                    }),
                     request: async () => {
                         const packed = await packChannelContext({
                             channelId: id,
@@ -150,11 +146,11 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             highlightId: options.explainMessage!.id,
                             enabled: includeChannelContext,
                         });
-                        const userPrompt = t(
-                            `Magyarázd el ezt a Discord üzenetet (>>> jelöli). Térj ki a szlengre, hangnemre és a környező beszélgetésre.\nSzerző: ${author || "?"}\nCsatorna: ${channel?.name || title}\nÜzenet:\n${content}`,
-                            `Explain this Discord message (marked with >>>). Cover slang, tone, and nearby conversation.\nAuthor: ${author || "?"}\nChannel: ${channel?.name || title}\nMessage:\n${content}`,
-                            lang,
-                        );
+                        const userPrompt = t("explainPrompt", {
+                            author: author || "?",
+                            channel: channel?.name || title,
+                            content,
+                        });
                         return Native.sendChat({
                             prompt: withTranscript(userPrompt, packed, "explain"),
                             sessionId: null,
@@ -204,7 +200,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         const pending: ChatMessage = {
             id: nextId(),
             role: "assistant",
-            text: t(`${providerLabel} gondolkodik…`, `${providerLabel} is thinking…`, lang),
+            text: t("thinking", { provider: providerLabel }),
             pending: true,
         };
         const withPending = [...messagesRef.current, userMsg, pending];
@@ -223,7 +219,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     at: Date.now(),
                     text: reply.ok
                         ? unwrapReplyText(reply.text)
-                        : (reply.error || t("Ismeretlen Grok hiba.", "Unknown Grok error.", lang)),
+                        : (reply.error || t("unknownError")),
                 }
                 : msg
             );
@@ -298,18 +294,18 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
             <span className={cl("status")}>
                 <span className={cl("dot", { ok: connected })} />
                 {connected
-                    ? `${providerLabel} · ${status?.subscription || t("csatlakozva", "connected", lang)}`
-                    : (status?.error || t("Kapcsolódás…", "Connecting…", lang))}
+                    ? `${providerLabel} · ${status?.subscription || t("connected")}`
+                    : (status?.error || t("connecting"))}
             </span>
         }>
             <div className={cl("root")}>
                 <div className={cl("toolbar")}>
                     <span className={cl("toolbar-label")}>
-                        {t("Előzmény:", "History:", lang)} {threadTitle}
+                        {t("historyLabel")} {threadTitle}
                         {messages.length ? ` · ${messages.filter(m => !m.pending).length}` : ""}
                     </span>
                     <button className={cl("mini")} disabled={!messages.length} onClick={onClear}>
-                        {t("Előzmény törlése", "Clear history", lang)}
+                        {t("clearHistory")}
                     </button>
                 </div>
 
@@ -319,13 +315,9 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             <div className={cl("empty-icon")}>
                                 <GrokIcon height={32} width={32} />
                             </div>
-                            <strong>{t(`Szia! Én vagyok a ${providerLabel}.`, `Hi — I'm ${providerLabel}.`, lang)}</strong>
+                            <strong>{t("hello", { provider: providerLabel })}</strong>
                             <div>
-                                {t(
-                                    `Ez a beszélgetés ehhez van kötve: ${threadTitle}. Itt látod majd az előzményt is.`,
-                                    `This conversation is tied to ${threadTitle}. History will show up here.`,
-                                    lang,
-                                )}
+                                {t("helloHint", { title: threadTitle })}
                             </div>
                         </div>
                     )}
@@ -333,7 +325,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     {messages.map(msg => (
                         <div key={msg.id} className={cl("row", msg.role)}>
                             <div className={cl("meta")}>
-                                {msg.role === "user" ? t("Te", "You", lang) : providerLabel}
+                                {msg.role === "user" ? t("you") : providerLabel}
                                 {msg.at ? ` · ${formatTime(msg.at)}` : ""}
                             </div>
                             <div className={cl("bubble", msg.role, { pending: Boolean(msg.pending) })}>
@@ -344,13 +336,13 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             {msg.role === "assistant" && !msg.pending && (
                                 <div className={cl("actions")}>
                                     <button className={cl("mini")} onClick={() => copyWithToast(msg.text)}>
-                                        {t("Másolás", "Copy", lang)}
+                                        {t("copy")}
                                     </button>
                                     <button
                                         className={cl("mini")}
                                         onClick={() => insertTextIntoChatInputBox(msg.text)}
                                     >
-                                        {t("Beszúrás a chatbe", "Insert into chat", lang)}
+                                        {t("insertChat")}
                                     </button>
                                 </div>
                             )}
@@ -364,7 +356,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         rows={2}
                         value={input}
                         disabled={busy || !connected}
-                        placeholder={t(`Írj ${providerLabel}-nak…  Enter küld, Shift+Enter új sor`, `Message ${providerLabel}…  Enter to send, Shift+Enter for a new line`, lang)}
+                        placeholder={t("placeholder", { provider: providerLabel })}
                         onChange={e => setInput(e.currentTarget.value)}
                         onKeyDown={e => {
                             if (e.key === "Enter" && !e.shiftKey) {
@@ -374,7 +366,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         }}
                     />
                     <button className={cl("send")} disabled={busy || !connected || !input.trim()} onClick={onSend}>
-                        {busy ? t("Várj…", "Wait…", lang) : t("Küldés", "Send", lang)}
+                        {busy ? t("wait") : t("send")}
                     </button>
                 </div>
             </div>

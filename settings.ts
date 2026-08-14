@@ -10,7 +10,7 @@ import { OptionType } from "@utils/types";
 export const settings = definePluginSettings({
     provider: {
         type: OptionType.SELECT,
-        description: "Melyik AI-t használd (helyi CLI előfizetés)",
+        description: "Which AI to use (local CLI subscription)",
         options: [
             { label: "Grok (xAI)", value: "grok", default: true },
             { label: "Codex (OpenAI / ChatGPT)", value: "codex" },
@@ -18,16 +18,17 @@ export const settings = definePluginSettings({
     },
     language: {
         type: OptionType.SELECT,
-        description: "UI és válasz nyelve",
+        description: "UI and reply language",
         options: [
-            { label: "Automatikus (üzenet nyelve)", value: "auto", default: true },
+            { label: "English", value: "en", default: true },
             { label: "Magyar", value: "hu" },
-            { label: "English", value: "en" },
+            { label: "Deutsch", value: "de" },
+            { label: "Español", value: "es" },
         ],
     },
     grokModel: {
         type: OptionType.SELECT,
-        description: "xAI / Grok modell",
+        description: "xAI / Grok model",
         hidden() { return this.store.provider === "codex"; },
         options: [
             { label: "grok-4.6 (default)", value: "grok-4.6", default: true },
@@ -36,10 +37,10 @@ export const settings = definePluginSettings({
     },
     codexModel: {
         type: OptionType.SELECT,
-        description: "OpenAI / Codex modell",
+        description: "OpenAI / Codex model",
         hidden() { return this.store.provider !== "codex"; },
         options: [
-            { label: "CLI alapértelmezett", value: "default", default: true },
+            { label: "CLI default", value: "default", default: true },
             { label: "GPT-5.6-Sol", value: "gpt-5.6-sol" },
             { label: "GPT-5.6-Terra", value: "gpt-5.6-terra" },
             { label: "GPT-5.6-Luna", value: "gpt-5.6-luna" },
@@ -50,32 +51,32 @@ export const settings = definePluginSettings({
     },
     allowWebSearch: {
         type: OptionType.BOOLEAN,
-        description: "Webes keresés engedélyezése (Grok)",
+        description: "Allow web search (Grok)",
         hidden() { return this.store.provider === "codex"; },
         default: false,
     },
     includeChannelContext: {
         type: OptionType.BOOLEAN,
-        description: "Az AI lekérheti a jelenlegi Discord chat / DM üzeneteit (összefoglaló, explain kontextus)",
+        description: "Let the AI read messages from the current Discord chat / DM (summaries, explain context)",
         default: true,
     },
     grokPath: {
         type: OptionType.STRING,
-        description: "Egyedi grok.exe útvonal (üresen auto-detect)",
+        description: "Custom grok.exe path (empty = auto-detect)",
         hidden() { return this.store.provider === "codex"; },
         default: "",
         placeholder: String.raw`C:\Users\You\.grok\bin\grok.exe`,
     },
     codexPath: {
         type: OptionType.STRING,
-        description: "Egyedi codex.exe útvonal (üresen auto-detect)",
+        description: "Custom codex.exe path (empty = auto-detect)",
         hidden() { return this.store.provider !== "codex"; },
         default: "",
         placeholder: String.raw`C:\Users\You\AppData\Local\OpenAI\Codex\bin\...\codex.exe`,
     },
     autoUpdate: {
         type: OptionType.BOOLEAN,
-        description: "Discord indításakor ellenőrizze a GitHubot, és telepítse az AI-Plugin frissítést (újraindítás kell utána)",
+        description: "On Discord startup, check GitHub and install AI-Plugin updates (restart required after)",
         default: true,
     },
 });

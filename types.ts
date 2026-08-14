@@ -29,7 +29,7 @@ export interface ChatRequest {
     prompt: string;
     sessionId?: string | null;
     model?: string;
-    language?: "auto" | "hu" | "en";
+    language?: "en" | "hu" | "de" | "es";
     allowWebSearch?: boolean;
     grokPath?: string;
     provider?: AiProvider;
@@ -40,7 +40,7 @@ export interface ExplainRequest {
     content: string;
     author?: string;
     channelName?: string;
-    language?: "auto" | "hu" | "en";
+    language?: "en" | "hu" | "de" | "es";
     model?: string;
     grokPath?: string;
 }

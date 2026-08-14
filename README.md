@@ -1,66 +1,63 @@
 # AI-Plugin
 
-Vencord / Equicord userplugin: Grok a Discord chatben, a **helyi Grok CLI** előfizetéseddel.
+Vencord / Equicord userplugin: chat with **Grok** or **Codex** from Discord using your local CLI subscription.
 
-A plugin nem kér külön API kulcsot. Megkeresi a gépeden a `grok` CLI-t (`%USERPROFILE%\.grok\bin\grok.exe`), ellenőrzi a `grok login` sessiont (SuperGrok / X Premium+ / grok.com), és headless módban azon keresztül beszélget.
+No extra API key is required. The plugin finds `grok` / `codex` on your machine, detects a logged-in session (SuperGrok / X Premium+ / ChatGPT Plus), and talks through the CLI.
 
-## Mit tud
+## Features
 
-- **AI gomb a chatbárban** (GIF / sticker / nitro gombok mellett) — megnyit egy Grok chatablakot
-- **AI ikon az üzenet műveleteknél** (hover) — „Magyarázat Grokkal”
-- Ugyanez a **jobb klikk** menüben is
-- `/grok` slash parancs, opcionális kérdéssel
-- Válasz másolása vagy beszúrása a Discord inputba
-- A Grok lekérheti a **jelenlegi Discord chat / DM üzeneteit** (pl. „foglald össze az egy hetes beszélgetésünket”), explainnél pedig a környező üzeneteket is odaadja
-- **Grok** vagy **Codex (ChatGPT Plus / OpenAI)** — a plugin settingsben váltható; mindkettő a helyi CLI előfizetésedet használja
+- **AI button** next to the GIF / sticker / Nitro buttons — opens the AI chat window
+- **AI icon on message actions** (hover) — “Explain with AI”
+- Same action in the **right-click** menu
+- `/grok` slash command (optional question)
+- Copy a reply or insert it into the Discord input
+- The AI can **read the current Discord channel / DM** (e.g. “summarize our conversation from this week”); explain also includes nearby messages
+- **Grok** or **Codex (ChatGPT / OpenAI)** — switch in plugin settings
+- UI language: **English** (default), Hungarian, German, Spanish
 
-Csak **asztali Discord** vagy **Vesktop** alatt megy. A böngészős Vencordban nincs `native.ts` / CLI.
+Desktop Discord or Vesktop only. Vencord Web has no `native.ts` / CLI.
 
-## Előfeltétel: Grok CLI
+## Prerequisites
 
-1. Telepítés (Windows PowerShell):
+**Grok CLI**
 
 ```powershell
 irm https://x.ai/cli/install.ps1 | iex
-```
-
-2. Bejelentkezés az előfizetéseddel:
-
-```powershell
 grok login
-```
-
-3. Ellenőrzés:
-
-```powershell
 grok models
 ```
 
-Ha ezt látod: `You are logged in with grok.com.` — a plugin is ezt észleli.
+If you see `You are logged in with grok.com.`, the plugin can use it.
 
-## Telepítés
+**Codex CLI**
 
-Kell hozzá az Equicord vagy Vencord **forrás** (nem elég az installer `.asar`).
+Install the ChatGPT / Codex desktop app (or `npm i -g @openai/codex`) and run `codex login`. A ChatGPT Plus session in `%USERPROFILE%\.codex\auth.json` is enough.
 
-### Egy parancs (Command Prompt)
+## Install
 
-Zárd be a Discordot, nyiss egy **cmd**-t (nem PowerShell), illeszd be:
+You need the Equicord or Vencord **source** (the installer `.asar` is not enough).
+
+### One command (Command Prompt)
+
+Close Discord, open **cmd** (not PowerShell), paste:
 
 ```bat
 cd /d "%USERPROFILE%\Documents\GitHub" && if not exist Equicord git clone https://github.com/Equicord/Equicord.git && cd Equicord && if not exist src\userplugins mkdir src\userplugins && if not exist src\userplugins\grokAi git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\grokAi && (bun install || corepack pnpm@11.20.0 install) && bun run build && taskkill /F /IM Discord.exe 2>nul & set EQUICORD_USER_DATA_DIR=%CD%&& set EQUICORD_DIRECTORY=%CD%\dist\desktop&& set EQUICORD_DEV_INSTALL=1&& bun run inject -- -install -branch stable
 ```
 
-A `bun install` ha elhasal az Equicord workspace-en, automatikusan `corepack pnpm`-re vált. A `mkdir ... -Force` cmd-ben **nem** kell — az egy PowerShell flag, és külön `-Force` mappát csinál.
+If `bun install` fails on Equicord `link:` workspace packages, it falls back to `corepack pnpm`. Do **not** use `mkdir ... -Force` in cmd — that creates a folder named `-Force`.
+
+### Manual
 
 ```powershell
-cd $env:USERPROFILE\Equicord
+cd $env:USERPROFILE\Documents\GitHub\Equicord
 mkdir src\userplugins -Force
 git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\grokAi
 ```
 
-Vencordra ugyanez, csak a `Vencord` mappában.
+Same for Vencord, just use the `Vencord` folder.
 
-Ezután **egy** csomagkezelővel install + build. Windows PowerShellben az `npm` shim gyakran tiltva van — ott `npm.cmd`-t használj.
+Then install and build with **one** package manager. In Windows PowerShell the `npm` shim is often blocked — use `npm.cmd`.
 
 **bun**
 
@@ -78,7 +75,7 @@ npm.cmd run build
 npm.cmd run inject
 ```
 
-Ha a `bun install` az Equicord `link:` workspace csomagjain elhasal (`@vencord/discord-types is not linked`), a Node-dal jövő corepack is elég, külön pnpm telepítés nélkül:
+If bun cannot resolve Equicord `link:` packages (`@vencord/discord-types is not linked`):
 
 ```powershell
 corepack pnpm@11.20.0 install
@@ -86,7 +83,7 @@ corepack pnpm@11.20.0 run build
 corepack pnpm@11.20.0 run inject
 ```
 
-Ha az injector interaktív / elhasal, Discordot zárd be, majd:
+If the injector is interactive / fails, close Discord and run:
 
 ```powershell
 $env:EQUICORD_USER_DATA_DIR = "$pwd"
@@ -95,54 +92,57 @@ $env:EQUICORD_DEV_INSTALL = "1"
 .\dist\Installer\EquilotlCli.exe -install -branch stable
 ```
 
-Ha az `app.asar` mappa miatt az injector továbbra sem megy, a Discord `resources\app.asar\index.js` mutasson ide:
+If `app.asar` is a folder and inject still fails, point Discord `resources\app.asar\index.js` at:
 
 `C:\Users\User\Equicord\dist\desktop\patcher.js`
 
-Indítsd a Discordot. Settings → Plugins → **AI-Plugin** → Enable.
+Start Discord. Settings → Plugins → **AI-Plugin** → Enable.
 
-### Frissítés (Command Prompt)
+### Update (Command Prompt)
 
-Zárd be a Discordot, illeszd be:
+Close Discord, paste:
 
 ```bat
 cd /d "%USERPROFILE%\Documents\GitHub\Equicord" && git -C src\userplugins\grokAi fetch origin && git -C src\userplugins\grokAi reset --hard origin/main && (bun run build || corepack pnpm@11.20.0 run build)
 ```
 
-Ha a forrásod `C:\Users\User\Equicord`:
+If your source is `C:\Users\User\Equicord`:
 
 ```bat
 cd /d "%USERPROFILE%\Equicord" && git -C src\userplugins\grokAi fetch origin && git -C src\userplugins\grokAi reset --hard origin/main && (bun run build || corepack pnpm@11.20.0 run build)
 ```
 
-A plugin **magától is** ellenőrzi a GitHubot Discord indításkor (beállítás: *autoUpdate*). Kézzel: plugin settings → **Frissítés most**, vagy `/grokupdate`. Utána Discord restart.
+The plugin also checks GitHub on Discord startup (`autoUpdate`). Manual: plugin settings → **Update now**, or `/grokupdate`. Then restart Discord.
 
-## Beállítások
+## Settings
 
-| Beállítás | Mit csinál |
+| Setting | What it does |
 | --- | --- |
-| Language | UI + Grok válasz nyelve (`auto` / magyar / angol) |
-| Model | `grok-4.6` vagy `grok-4.5` |
-| Allow web search | Grok kereshet a weben |
-| Grok path | Opcionális saját `grok.exe` útvonal, ha az auto-detect nem találja |
+| Provider | Grok (xAI) or Codex (OpenAI / ChatGPT) |
+| Language | English (default), Magyar, Deutsch, Español |
+| Grok / Codex model | Models for the selected provider only |
+| Allow web search | Grok web search |
+| Include channel context | Send Discord history to the AI |
+| Grok / Codex path | Optional custom CLI path |
+| Auto update | Pull GitHub updates on startup |
 
-## Hogyan csatlakozik
+## How it connects
 
-A plugin Node oldalon (`native.ts`) ezt csinálja:
+On the Node side (`native.ts`):
 
-1. Megkeresi a CLI-t: beállítás → `%USERPROFILE%\.grok\bin\grok.exe` → PATH
-2. `grok models` + `auth.json` meta (név, lejárat — **tokent soha nem olvassa ki / nem küldi a rendererbe**)
-3. Kérdésnél: `grok --prompt-file ... --output-format json` egy izolált temp mappában, fájlírás/shell toolok nélkül
+1. Finds the CLI: setting → default install path → PATH
+2. Reads local login metadata (`auth.json`) — **tokens are never sent to the renderer**
+3. Sends the prompt headlessly (`grok --prompt-file` or `codex exec`) in an isolated temp folder, without file/shell tools
 
-A beszélgetés sessionjét a CLI tartja (`--resume`).
+The CLI keeps the conversation session (`--resume` / `codex exec resume`).
 
-## Hibaelhárítás
+## Troubleshooting
 
-- **„A Grok CLI nincs telepítve”** — futtasd az installert, majd Discord restart
-- **„Nincs aktív Grok előfizetés”** — `grok login`, ellenőrizd: `grok models`
-- A gomb nem jelenik meg — plugin be van kapcsolva? Discord újraindult a `bun run build` / `npm.cmd run build` után?
-- Csak asztali kliens. Vesktop OK, Vencord Web nem.
+- **“Grok / Codex CLI is not installed”** — install the CLI, then restart Discord
+- **“No active subscription”** — `grok login` or `codex login`
+- Button missing — is **AI-Plugin** enabled? Did you restart Discord after the build?
+- Desktop only. Vesktop is fine. Vencord Web is not.
 
-## Licenc
+## License
 
-GPL-3.0-or-later (Vencord plugin követelmény).
+GPL-3.0-or-later (required for Vencord plugins).

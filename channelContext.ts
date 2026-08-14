@@ -90,11 +90,11 @@ async function fetchPage(channelId: string, query: Record<string, string | numbe
 
 export function detectHistoryNeed(prompt: string) {
     const p = prompt.toLowerCase();
-    const wantsHistory = /foglal(d|ja)|összefoglal|summariz|summáz|recap|áttekint|mi volt|mit besz[eé]lt|el[oö]zm[eé]ny|besz[eé]lget[eé]s|conversation|history|üzenetek|chatet|itt (mi|mit)|context/.test(p);
-    if (/egy\s*h[oó]nap|last\s*month|múlt\s*h[oó]nap/.test(p)) return { deep: true, days: 30 };
-    if (/egy\s*h[eé]t|heti|last\s*week|past\s*week|múlt\s*h[eé]t|elmúlt\s*h[eé]t|7\s*nap|this\s*week/.test(p)) return { deep: true, days: 7 };
-    if (/tegnap|yesterday/.test(p)) return { deep: true, days: 1 };
-    if (/ma\b|today|24\s*[oó]ra/.test(p) && wantsHistory) return { deep: true, days: 1 };
+    const wantsHistory = /foglal(d|ja)|összefoglal|summariz|summáz|recap|áttekint|zusammenfass|erkl[aä]r|resum(e|en)|explica|mi volt|mit besz[eé]lt|el[oö]zm[eé]ny|besz[eé]lget[eé]s|conversation|history|verlauf|historial|üzenetek|chatet|itt (mi|mit)|context/.test(p);
+    if (/egy\s*h[oó]nap|last\s*month|múlt\s*h[oó]nap|letzten?\s*monat|el\s*mes/.test(p)) return { deep: true, days: 30 };
+    if (/egy\s*h[eé]t|heti|last\s*week|past\s*week|múlt\s*h[eé]t|elmúlt\s*h[eé]t|7\s*nap|this\s*week|letzte\s*woche|esta\s*semana/.test(p)) return { deep: true, days: 7 };
+    if (/tegnap|yesterday|gestern|ayer/.test(p)) return { deep: true, days: 1 };
+    if (/ma\b|today|heute|hoy|24\s*[oó]ra/.test(p) && wantsHistory) return { deep: true, days: 1 };
     if (wantsHistory) return { deep: true, days: 3 };
     return { deep: false, days: null as number | null };
 }

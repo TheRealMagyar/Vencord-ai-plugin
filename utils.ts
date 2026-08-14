@@ -29,8 +29,4 @@ export function getMessageContent(message: Message) {
         || "";
 }
 
-export function t(hu: string, en: string, language: string) {
-    if (language === "en") return en;
-    if (language === "hu") return hu;
-    return hu;
-}
+export { t } from "./i18n";

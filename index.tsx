@@ -47,7 +47,7 @@ const messageCtxPatch: NavContextMenuPatchCallback = (children, { message }: { m
     group.splice(group.findIndex(c => c?.props?.id === "copy-text") + 1, 0, (
         <Menu.MenuItem
             id="vc-grokai-explain"
-            label={t("Magyarázat Grokkal", "Explain with Grok", settings.store.language)}
+            label={t("explainWithAi")}
             icon={GrokIcon}
             action={() => openGrokModal({ explainMessage: message, channelId: message.channel_id })}
         />
@@ -57,20 +57,20 @@ const messageCtxPatch: NavContextMenuPatchCallback = (children, { message }: { m
 async function runPluginUpdate(language: string) {
     const Native = getNative();
     if (!Native) {
-        showToast(t("Csak asztali Discordon megy a frissítés.", "Updates only work on desktop Discord.", language), Toasts.Type.FAILURE);
+        showToast(t("updateDesktopOnly"), Toasts.Type.FAILURE);
         return;
     }
 
-    showToast(t("AI-Plugin frissítés…", "Updating AI-Plugin…", language), Toasts.Type.MESSAGE);
+    showToast(t("updating"), Toasts.Type.MESSAGE);
     const result = await Native.applyUpdate();
     if (result.ok) {
         showToast(
-            t("AI-Plugin frissítve. Indítsd újra a Discordot.", "AI-Plugin updated. Restart Discord.", language),
+            t("updatedRestart"),
             Toasts.Type.SUCCESS,
         );
         return;
     }
-    showToast(result.error || t("Frissítés sikertelen.", "Update failed.", language), Toasts.Type.FAILURE);
+    showToast(result.error || t("updateFailed"), Toasts.Type.FAILURE);
 }
 
 function SettingsAbout() {
@@ -114,22 +114,22 @@ function SettingsAbout() {
     return (
         <div className={cl("settings")}>
             <strong>{status?.authenticated
-                ? t(`${provider === "codex" ? "Codex" : "Grok"} CLI csatlakoztatva`, `${provider === "codex" ? "Codex" : "Grok"} CLI connected`, language)
-                : t("AI CLI státusz", "AI CLI status", language)}</strong>
-            <div>{status?.subscription || status?.error || t("Ellenőrzés…", "Checking…", language)}</div>
-            {status?.displayName && <div>{t("Fiók", "Account", language)}: {status.displayName}</div>}
+                ? t("cliConnected", { name: provider === "codex" ? "Codex" : "Grok" })
+                : t("cliStatus")}</strong>
+            <div>{status?.subscription || status?.error || t("checking")}</div>
+            {status?.displayName && <div>{t("account")}: {status.displayName}</div>}
             {status?.version && <div>CLI: {status.version}</div>}
             {status?.grokPath && <div><code>{status.grokPath}</code></div>}
 
-            <strong>{t("GitHub frissítés", "GitHub update", language)}</strong>
+            <strong>{t("githubUpdate")}</strong>
             <div>
                 {update == null
-                    ? t("Ellenőrzés…", "Checking…", language)
+                    ? t("checking")
                     : update.available
-                        ? t(`Új verzió van (${update.local} → ${update.remote})`, `Update available (${update.local} → ${update.remote})`, language)
+                        ? t("updateAvailable", { local: update.local ?? "", remote: update.remote ?? "" })
                         : update.ok
-                            ? t("Naprakész.", "Up to date.", language)
-                            : (update.error || t("Nem sikerült ellenőrizni.", "Could not check.", language))}
+                            ? t("upToDate")
+                            : (update.error || t("checkFailed"))}
             </div>
             <button
                 className={cl("send")}
@@ -146,8 +146,8 @@ function SettingsAbout() {
                 }}
             >
                 {busy
-                    ? t("Frissítés…", "Updating…", language)
-                    : t("Frissítés most", "Update now", language)}
+                    ? t("updateInProgress")
+                    : t("updateNow")}
             </button>
         </div>
     );
@@ -178,7 +178,7 @@ export default definePlugin({
     },
 
     toolboxActions: {
-        "AI-Plugin frissítése": () => runPluginUpdate(settings.store.language),
+        [t("toolboxUpdate")]: () => runPluginUpdate(settings.store.language),
     },
 
     contextMenus: {
@@ -197,7 +197,7 @@ export default definePlugin({
             if (!content) return null;
 
             return {
-                label: t("Magyarázat Grokkal", "Explain with Grok", settings.store.language),
+                label: t("explainWithAi"),
                 icon: GrokIcon,
                 message,
                 channel: ChannelStore.getChannel(message.channel_id),
@@ -233,7 +233,7 @@ export default definePlugin({
                     });
                 }
 
-                sendBotMessage(ctx.channel.id, { content: "Grok gondolkodik…" });
+                sendBotMessage(ctx.channel.id, { content: t("thinkingShort") });
                 const packed = await packChannelContext({
                     channelId: ctx.channel.id,
                     prompt: question,
@@ -244,7 +244,7 @@ export default definePlugin({
                     model: settings.store.provider === "codex"
                         ? (settings.store.codexModel && settings.store.codexModel !== "default" ? settings.store.codexModel : undefined)
                         : settings.store.grokModel,
-                    language: settings.store.language as "auto" | "hu" | "en",
+                    language: settings.store.language as "en" | "hu" | "de" | "es",
                     allowWebSearch: settings.store.allowWebSearch,
                     grokPath: settings.store.grokPath || undefined,
                     provider: settings.store.provider === "codex" ? "codex" : "grok",

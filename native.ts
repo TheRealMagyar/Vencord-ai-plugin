@@ -259,8 +259,9 @@ export async function getStatus(_event: unknown, providerOrPath?: string, maybeP
 
 function languageRule(language?: ChatRequest["language"]) {
     if (language === "hu") return "Always reply in Hungarian.";
-    if (language === "en") return "Always reply in English.";
-    return "Reply in the same language the user is using. If mixed, prefer Hungarian.";
+    if (language === "de") return "Always reply in German.";
+    if (language === "es") return "Always reply in Spanish.";
+    return "Always reply in English.";
 }
 
 function buildArgs(opts: {
@@ -588,9 +589,13 @@ export async function sendChat(_event: unknown, request: ChatRequest): Promise<G
 }
 
 export async function explainMessage(_event: unknown, request: ExplainRequest): Promise<GrokReply> {
-    const header = request.language === "en"
-        ? "Explain this Discord message. Cover slang, tone, irony, and implied meaning. Be concise."
-        : "Magyarázd el ezt a Discord üzenetet. Térj ki a szlengre, hangnemre, iróniára és a rejtett jelentésre. Légy tömör.";
+    const header = request.language === "hu"
+        ? "Magyarázd el ezt a Discord üzenetet. Térj ki a szlengre, hangnemre, iróniára és a rejtett jelentésre. Légy tömör."
+        : request.language === "de"
+            ? "Erkläre diese Discord-Nachricht. Gehe auf Slang, Ton, Ironie und die implizite Bedeutung ein. Sei knapp."
+            : request.language === "es"
+                ? "Explica este mensaje de Discord. Cubre el argot, el tono, la ironía y el significado implícito. Sé breve."
+                : "Explain this Discord message. Cover slang, tone, irony, and implied meaning. Be concise.";
 
     const parts = [header];
     if (request.author) parts.push(`Author: ${request.author}`);
