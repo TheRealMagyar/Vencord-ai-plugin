@@ -240,6 +240,7 @@ Enter sends. Shift+Enter inserts a new line.
 | Codex model | CLI default, GPT-5.6 Sol / Terra / Luna, GPT-5.5, 5.4, 5.4-Mini. Hidden when Grok is selected |
 | Allow web search | Grok only |
 | Show thinking | Live thinking + tool use (web search, etc.) for Grok and Codex |
+| Fact-check depth | Quick (1 search), Balanced (2 searches, default), or Deep (search + read sources) |
 | Include channel context | Attach Discord history for summaries, explain, and fact-check |
 | Grok / Codex path | Optional override if auto-detect fails |
 | Auto update | Pull from GitHub when Discord starts |

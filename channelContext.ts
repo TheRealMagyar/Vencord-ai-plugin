@@ -165,6 +165,7 @@ export async function packChannelContext(opts: {
     aroundId?: string;
     highlightId?: string;
     enabled?: boolean;
+    max?: number;
 }): Promise<PackedContext> {
     if (!opts.enabled || !opts.channelId) {
         return { transcript: "", count: 0, days: null, deep: false };
@@ -176,7 +177,7 @@ export async function packChannelContext(opts: {
         aroundId: opts.aroundId,
         days: need.days,
         deep: need.deep || Boolean(opts.aroundId),
-        max: opts.aroundId ? 80 : need.deep ? 250 : 45,
+        max: opts.max ?? (opts.aroundId ? 80 : need.deep ? 250 : 45),
     });
 
     return {

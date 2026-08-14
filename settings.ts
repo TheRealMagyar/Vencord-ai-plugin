@@ -79,6 +79,15 @@ export const settings = definePluginSettings({
         description: "Show thinking and tool use (web search, etc.) while Grok or Codex works",
         default: true,
     },
+    factCheckDepth: {
+        type: OptionType.SELECT,
+        description: "How deep fact-check should go (more depth is slower)",
+        options: [
+            { label: "Quick — 1 search, short verdict", value: "quick" },
+            { label: "Balanced — 2 searches, no page fetch (default)", value: "balanced", default: true },
+            { label: "Deep — more searches + read sources", value: "deep" },
+        ],
+    },
     includeChannelContext: {
         type: OptionType.BOOLEAN,
         description: "Let the AI read messages from the current Discord chat / DM (summaries, explain, fact-check context)",

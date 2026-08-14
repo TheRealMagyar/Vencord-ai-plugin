@@ -83,7 +83,7 @@ function resolveMessageAction(options?: OpenOptions): { kind: MessageActionKind;
 }
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
-    const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath, showThinking } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath", "showThinking"]);
+    const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath, showThinking, factCheckDepth } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath", "showThinking", "factCheckDepth"]);
     const [status, setStatus] = useState<GrokStatus | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
@@ -172,7 +172,16 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 const author = message.author?.username;
                 const channel = ChannelStore.getChannel(message.channel_id);
                 const visibleKey = kind === "explain" ? "explainVisible" : "factCheckVisible";
-                const promptKey = kind === "explain" ? "explainPrompt" : "factCheckPrompt";
+                const promptKey = kind === "explain"
+                    ? "explainPrompt"
+                    : factCheckDepth === "quick"
+                        ? "factCheckPromptQuick"
+                        : factCheckDepth === "deep"
+                            ? "factCheckPromptDeep"
+                            : "factCheckPrompt";
+                const contextMax = kind === "factcheck"
+                    ? (factCheckDepth === "quick" ? 16 : factCheckDepth === "deep" ? 80 : 32)
+                    : undefined;
                 await ask({
                     kind,
                     visible: t(visibleKey, {
@@ -186,6 +195,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             aroundId: message.id,
                             highlightId: message.id,
                             enabled: includeChannelContext,
+                            max: contextMax,
                         });
                         const userPrompt = t(promptKey, {
                             author: author || "?",
@@ -203,6 +213,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             codexPath: codexPath || undefined,
                             kind,
                             jobId,
+                            factCheckDepth: kind === "factcheck" ? factCheckDepth : undefined,
                         });
                     },
                     context: { channelId: id, title },

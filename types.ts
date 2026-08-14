@@ -5,6 +5,7 @@
  */
 
 export type AiProvider = "grok" | "codex";
+export type FactCheckDepth = "quick" | "balanced" | "deep";
 
 export interface GrokStatus {
     installed: boolean;
@@ -57,6 +58,7 @@ export interface ChatRequest {
     codexPath?: string;
     kind?: "chat" | "explain" | "factcheck";
     jobId?: string;
+    factCheckDepth?: FactCheckDepth;
 }
 
 export interface ExplainRequest {

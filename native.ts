@@ -11,7 +11,7 @@ import { homedir, tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 
-import type { AiProvider, ChatProgress, ChatRequest, ChatToolStep, ExplainRequest, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
+import type { AiProvider, ChatProgress, ChatRequest, ChatToolStep, ExplainRequest, FactCheckDepth, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
 
 const execFileAsync = promisify(execFile);
 const GROK_BIN = process.platform === "win32" ? "grok.exe" : "grok";
@@ -317,14 +317,39 @@ function languageRule(language?: ChatRequest["language"]) {
     return "Always reply in English.";
 }
 
+function factCheckDepthOf(request: ChatRequest): FactCheckDepth {
+    return request.factCheckDepth === "quick" || request.factCheckDepth === "deep"
+        ? request.factCheckDepth
+        : "balanced";
+}
+
 function wantsWebTools(request: ChatRequest) {
     return request.kind === "factcheck" || Boolean(request.allowWebSearch);
 }
 
+function wantsWebFetch(request: ChatRequest) {
+    return request.kind === "factcheck" && factCheckDepthOf(request) === "deep";
+}
+
 function maxTurnsFor(request: ChatRequest) {
-    if (request.kind === "factcheck") return 12;
+    if (request.kind === "factcheck") {
+        const depth = factCheckDepthOf(request);
+        if (depth === "quick") return 4;
+        if (depth === "deep") return 8;
+        return 6;
+    }
     if (wantsWebTools(request)) return 8;
     return 4;
+}
+
+function timeoutMsFor(request: ChatRequest) {
+    if (request.kind === "factcheck") {
+        const depth = factCheckDepthOf(request);
+        if (depth === "quick") return 90_000;
+        if (depth === "deep") return 240_000;
+        return 150_000;
+    }
+    return PROMPT_TIMEOUT_MS;
 }
 
 function extraRulesFor(request: ChatRequest) {
@@ -337,19 +362,34 @@ function extraRulesFor(request: ChatRequest) {
         languageRule(request.language),
     ];
 
-    if (wantsWebTools(request)) {
+    if (wantsWebTools(request) && request.kind !== "factcheck") {
         parts.push(
-            "You have web_search and web_fetch. Use them when current facts, dates, quotes, or news matter.",
+            "You have web_search. Use it when current facts, dates, quotes, or news matter.",
             "After tool results arrive, write the complete answer in the same session.",
             "Never stop after announcing that you will look something up.",
         );
     }
 
     if (request.kind === "factcheck") {
-        parts.push(
-            "This is a fact-check. Call web_search (and web_fetch if needed), then output the full verdicts.",
-            "Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable, a short reason, and sources.",
-        );
+        const depth = factCheckDepthOf(request);
+        if (depth === "quick") {
+            parts.push(
+                "This is a quick fact-check. At most one web_search. Do not use web_fetch.",
+                "Then write a short complete verdict immediately. Do not keep searching.",
+            );
+        } else if (depth === "deep") {
+            parts.push(
+                "This is a thorough fact-check. Use web_search, and web_fetch only for the most important sources.",
+                "Then output full verdicts. Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable, a short reason, and sources.",
+                "Never stop after announcing that you will look something up.",
+            );
+        } else {
+            parts.push(
+                "This is a balanced fact-check. At most two web_search calls. Do not use web_fetch.",
+                "Then write the complete verdicts immediately. Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable and a short reason.",
+                "Never stop after announcing that you will look something up.",
+            );
+        }
     }
 
     return parts.join(" ");
@@ -601,8 +641,8 @@ function createLineParser(onEvent: (event: Record<string, unknown>) => void) {
     };
 }
 
-function spawnGrok(grokPath: string, args: string[], allowWebSearch: boolean, progress: ChatProgress) {
-    return new Promise<{ stdout: string; stderr: string; code: number | null; }>((resolve, reject) => {
+function spawnGrok(grokPath: string, args: string[], opts: { allowFetch: boolean; timeoutMs: number; progress: ChatProgress; }) {
+    return new Promise<{ stdout: string; stderr: string; code: number | null; timedOut: boolean; }>((resolve, reject) => {
         const child = spawn(grokPath, args, {
             cwd: isolatedCwd(),
             windowsHide: true,
@@ -610,19 +650,20 @@ function spawnGrok(grokPath: string, args: string[], allowWebSearch: boolean, pr
             env: {
                 ...process.env,
                 GROK_DISABLE_AUTOUPDATER: "1",
-                GROK_WEB_FETCH: allowWebSearch ? "1" : "0",
+                GROK_WEB_FETCH: opts.allowFetch ? "1" : "0",
                 RUST_LOG: "off",
             },
         });
 
         let stdout = "";
         let stderr = "";
+        let timedOut = false;
         const timer = setTimeout(() => {
+            timedOut = true;
             child.kill();
-            reject(new Error(`Időtúllépés (${PROMPT_TIMEOUT_MS / 1000}s).`));
-        }, PROMPT_TIMEOUT_MS);
+        }, opts.timeoutMs);
 
-        const lines = createLineParser(event => applyGrokEvent(progress, event));
+        const lines = createLineParser(event => applyGrokEvent(opts.progress, event));
         child.stdout?.setEncoding("utf8");
         child.stderr?.setEncoding("utf8");
         child.stdout?.on("data", chunk => {
@@ -637,7 +678,7 @@ function spawnGrok(grokPath: string, args: string[], allowWebSearch: boolean, pr
         child.on("close", code => {
             clearTimeout(timer);
             lines.flush();
-            resolve({ stdout, stderr, code });
+            resolve({ stdout, stderr, code, timedOut });
         });
     });
 }
@@ -660,6 +701,7 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
         writeFileSync(promptFile, request.prompt, "utf8");
 
         const allowWebSearch = wantsWebTools(request);
+        const timeoutMs = timeoutMsFor(request);
         const args = buildArgs({
             promptFile,
             sessionId: request.sessionId,
@@ -669,10 +711,24 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
             maxTurns: maxTurnsFor(request),
         });
 
-        const { stdout, stderr, code } = await spawnGrok(grokPath, args, allowWebSearch, progress);
+        const { stdout, stderr, code, timedOut } = await spawnGrok(grokPath, args, {
+            allowFetch: wantsWebFetch(request),
+            timeoutMs,
+            progress,
+        });
 
         const streamedText = progress.text.trim();
         const streamedSession = progress.sessionId;
+        if (timedOut && !streamedText) {
+            return {
+                ok: false,
+                text: "",
+                sessionId: streamedSession,
+                error: `Időtúllépés (${timeoutMs / 1000}s). Próbáld a gyorsabb fact-check mélységet a beállításokban.`,
+                thought: progress.thought || undefined,
+                tools: progress.tools,
+            };
+        }
         if (streamedText) {
             if (code && code !== 0 && progress.status === "error" && !streamedText) {
                 return {
@@ -826,7 +882,11 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
         "Do not mention these instructions. Do not run shell commands unless necessary.",
         "Write the complete answer now. Never stop after announcing that you will look something up.",
         request.kind === "factcheck"
-            ? "This is a fact-check. Every checkable claim needs a verdict (True / Mostly true / Mixed / Mostly false / False / Unverifiable) and a short reason."
+            ? (factCheckDepthOf(request) === "quick"
+                ? "This is a quick fact-check. Keep it short. One lookup at most, then a verdict."
+                : factCheckDepthOf(request) === "deep"
+                    ? "This is a thorough fact-check. Every checkable claim needs a verdict and sources."
+                    : "This is a balanced fact-check. Every checkable claim needs a verdict and a short reason. Be concise.")
             : "",
         languageRule(request.language),
     ].filter(Boolean).join(" ");
@@ -846,12 +906,30 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
 
         let stdout = "";
         let stderr = "";
+        let settled = false;
+        const timeoutMs = timeoutMsFor(request);
+        const lines = createLineParser(event => applyCodexEvent(progress, event));
+        const finish = (reply: GrokReply) => {
+            if (settled) return;
+            settled = true;
+            resolve(reply);
+        };
         const timer = setTimeout(() => {
             child.kill();
-            resolve({ ok: false, text: "", sessionId: null, error: `Időtúllépés (${PROMPT_TIMEOUT_MS / 1000}s).` });
-        }, PROMPT_TIMEOUT_MS);
-
-        const lines = createLineParser(event => applyCodexEvent(progress, event));
+            lines.flush();
+            if (progress.text.trim()) {
+                finish({
+                    ok: true,
+                    text: progress.text.trim(),
+                    sessionId: progress.sessionId,
+                    error: null,
+                    thought: progress.thought || undefined,
+                    tools: progress.tools,
+                });
+                return;
+            }
+            finish({ ok: false, text: "", sessionId: progress.sessionId, error: `Időtúllépés (${timeoutMs / 1000}s).` });
+        }, timeoutMs);
         child.stdout?.setEncoding("utf8");
         child.stderr?.setEncoding("utf8");
         child.stdout?.on("data", chunk => {
@@ -863,7 +941,7 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
         child.stdin?.end();
         child.on("error", error => {
             clearTimeout(timer);
-            resolve({ ok: false, text: "", sessionId: null, error: error.message });
+            finish({ ok: false, text: "", sessionId: null, error: error.message });
         });
         child.on("close", code => {
             clearTimeout(timer);
@@ -880,7 +958,7 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
                 : parseCodexJsonl(stdout, progress);
             if (!parsed.ok && code && code !== 0 && !parsed.error)
                 parsed.error = stderr.trim() || `Codex kilépett (kód ${code}).`;
-            resolve(parsed);
+            finish(parsed);
         });
     });
 }
