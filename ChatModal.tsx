@@ -371,6 +371,16 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         await refreshThreads();
     }
 
+    async function deleteThread(id: string) {
+        if (isChannelBusy(id)) return;
+        if (id === channelId) {
+            await onClear();
+            return;
+        }
+        await clearThread(id);
+        await refreshThreads();
+    }
+
     const connected = Boolean(status?.installed && status.authenticated);
     const title = `${providerLabel} · ${threadTitle}`;
 
@@ -400,19 +410,35 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         {threads.length === 0 && (
                             <div className={cl("sidebar-empty")}>{t("noChats")}</div>
                         )}
-                        {threads.map(thread => (
-                            <button
-                                key={thread.channelId}
-                                className={cl("thread", {
-                                    active: thread.channelId === channelId,
-                                    live: isChannelBusy(thread.channelId),
-                                })}
-                                onClick={() => switchThread(thread.channelId)}
-                            >
-                                <span className={cl("thread-name")}>{thread.title || getThreadTitle(thread.channelId)}</span>
-                                {isChannelBusy(thread.channelId) && <span className={cl("live-dot")} />}
-                            </button>
-                        ))}
+                        {threads.map(thread => {
+                            const live = isChannelBusy(thread.channelId);
+                            return (
+                                <div
+                                    key={thread.channelId}
+                                    className={cl("thread", {
+                                        active: thread.channelId === channelId,
+                                        live,
+                                    })}
+                                >
+                                    <button
+                                        className={cl("thread-open")}
+                                        onClick={() => switchThread(thread.channelId)}
+                                    >
+                                        <span className={cl("thread-name")}>{thread.title || getThreadTitle(thread.channelId)}</span>
+                                        {live && <span className={cl("spinner")} aria-hidden="true" />}
+                                    </button>
+                                    <button
+                                        className={cl("thread-del")}
+                                        disabled={live}
+                                        title={t("deleteChat")}
+                                        aria-label={t("deleteChat")}
+                                        onClick={() => deleteThread(thread.channelId)}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            );
+                        })}
                     </div>
                 </aside>
                 <div className={cl("main")}>
@@ -428,7 +454,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         >
                             {t("thinkingToggle")}
                         </button>
-                        <button className={cl("mini")} disabled={!messages.length} onClick={onClear}>
+                        <button className={cl("mini")} disabled={!messages.length || busy} onClick={onClear}>
                             {t("clearHistory")}
                         </button>
                     </div>

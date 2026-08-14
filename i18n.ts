@@ -189,6 +189,12 @@ const dict = {
         de: "Noch keine gespeicherten Chats.",
         es: "Aún no hay chats guardados.",
     },
+    deleteChat: {
+        en: "Delete chat",
+        hu: "Chat törlése",
+        de: "Chat löschen",
+        es: "Borrar chat",
+    },
     openAi: {
         en: "Open AI",
         hu: "AI megnyitása",
