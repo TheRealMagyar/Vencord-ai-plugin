@@ -7,6 +7,7 @@
 import "./styles.css";
 
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
+import { addMessagePopoverButton, removeMessagePopoverButton } from "@api/MessagePopover";
 import { migratePluginSetting, migratePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
@@ -16,7 +17,7 @@ import { ChannelStore, Menu, showToast, Toasts, useEffect, useState } from "@web
 
 import { packChannelContext, withTranscript } from "./channelContext";
 import { openGrokModal } from "./ChatModal";
-import { GrokIcon } from "./GrokIcon";
+import { FactCheckIcon, GrokIcon } from "./GrokIcon";
 import { settings } from "./settings";
 import type { GrokStatus, UpdateStatus } from "./types";
 import { cl, getMessageContent, getNative, t } from "./utils";
@@ -45,15 +46,34 @@ const messageCtxPatch: NavContextMenuPatchCallback = (children, { message }: { m
     const group = findGroupChildrenByChildId("copy-text", children);
     if (!group) return;
 
-    group.splice(group.findIndex(c => c?.props?.id === "copy-text") + 1, 0, (
+    group.splice(group.findIndex(c => c?.props?.id === "copy-text") + 1, 0,
         <Menu.MenuItem
             id="vc-grokai-explain"
             label={t("explainWithAi")}
             icon={GrokIcon}
             action={() => openGrokModal({ explainMessage: message, channelId: message.channel_id })}
+        />,
+        <Menu.MenuItem
+            id="vc-grokai-factcheck"
+            label={t("factCheckWithAi")}
+            icon={FactCheckIcon}
+            action={() => openGrokModal({ factCheckMessage: message, channelId: message.channel_id })}
         />
-    ));
+    );
 };
+
+function factCheckPopover(message: Message) {
+    const content = getMessageContent(message);
+    if (!content) return null;
+
+    return {
+        label: t("factCheckWithAi"),
+        icon: FactCheckIcon,
+        message,
+        channel: ChannelStore.getChannel(message.channel_id),
+        onClick: () => openGrokModal({ factCheckMessage: message, channelId: message.channel_id }),
+    };
+}
 
 async function runPluginUpdate(language: string) {
     const Native = getNative();
@@ -158,7 +178,7 @@ export default definePlugin({
     name: "AI-Plugin",
     description: "Chat bar AI button using your local Grok or Codex CLI subscription.",
     authors: [{ name: "TheRealMagyar", id: 0n }],
-    searchTerms: ["GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain"],
+    searchTerms: ["GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck"],
     tags: ["Chat", "Utility"],
     dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI"],
     settings,
@@ -166,6 +186,7 @@ export default definePlugin({
     requiresRestart: true,
 
     async start() {
+        addMessagePopoverButton("AI-Plugin-factcheck", factCheckPopover, FactCheckIcon);
         if (!settings.store.autoUpdate) return;
         const Native = getNative();
         if (!Native) return;
@@ -176,6 +197,10 @@ export default definePlugin({
         } catch {
             // ignore startup update errors
         }
+    },
+
+    stop() {
+        removeMessagePopoverButton("AI-Plugin-factcheck");
     },
 
     toolboxActions: {

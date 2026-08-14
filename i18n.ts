@@ -27,6 +27,18 @@ const dict = {
         de: "Erkläre diese Discord-Nachricht (mit >>> markiert). Gehe auf Slang, Ton und den umliegenden Chat ein.\nAutor: {author}\nKanal: {channel}\nNachricht:\n{content}",
         es: "Explica este mensaje de Discord (marcado con >>>). Cubre el argot, el tono y la conversación cercana.\nAutor: {author}\nCanal: {channel}\nMensaje:\n{content}",
     },
+    factCheckVisible: {
+        en: "Fact-check this message{author}:\n{content}",
+        hu: "Ellenőrizd ennek az üzenetnek a tényeit{author}:\n{content}",
+        de: "Prüfe die Fakten dieser Nachricht{author}:\n{content}",
+        es: "Verifica los hechos de este mensaje{author}:\n{content}",
+    },
+    factCheckPrompt: {
+        en: "Fact-check this Discord message (marked with >>>). List each checkable claim and give a verdict: True, Mostly true, Mixed, Mostly false, False, or Unverifiable. Short reason for each. Note uncertainty. If there are no factual claims, say so. Use current sources if you can search the web.\nAuthor: {author}\nChannel: {channel}\nMessage:\n{content}",
+        hu: "Ellenőrizd ennek a Discord üzenetnek (>>> jelöli) a tényállításait. Sorold fel az ellenőrizhető állításokat, és adj ítéletet: Igaz, Többnyire igaz, Vegyes, Többnyire hamis, Hamis, vagy Nem ellenőrizhető. Rövid indoklás. Írd le a bizonytalanságot. Ha nincs tényállítás, mondd meg. Ha tudsz weben keresni, használj aktuális forrásokat.\nSzerző: {author}\nCsatorna: {channel}\nÜzenet:\n{content}",
+        de: "Prüfe die Fakten dieser Discord-Nachricht (mit >>> markiert). Liste jede überprüfbare Behauptung und gib ein Urteil: Wahr, Überwiegend wahr, Gemischt, Überwiegend falsch, Falsch oder Nicht überprüfbar. Kurze Begründung. Unsicherheit nennen. Wenn es keine Faktenbehauptung gibt, sag das. Nutze aktuelle Quellen, wenn du im Web suchen kannst.\nAutor: {author}\nKanal: {channel}\nNachricht:\n{content}",
+        es: "Verifica los hechos de este mensaje de Discord (marcado con >>>). Enumera cada afirmación comprobable y da un veredicto: Verdadero, Mayormente verdadero, Mixto, Mayormente falso, Falso o No verificable. Razón breve. Señala la incertidumbre. Si no hay afirmaciones de hecho, dilo. Usa fuentes actuales si puedes buscar en la web.\nAutor: {author}\nCanal: {channel}\nMensaje:\n{content}",
+    },
     thinking: {
         en: "{provider} is thinking…",
         hu: "{provider} gondolkodik…",
@@ -116,6 +128,12 @@ const dict = {
         hu: "Magyarázat AI-val",
         de: "Mit KI erklären",
         es: "Explicar con IA",
+    },
+    factCheckWithAi: {
+        en: "Fact-check with AI",
+        hu: "Tényellenőrzés AI-val",
+        de: "Fakten mit KI prüfen",
+        es: "Verificar hechos con IA",
     },
     updateDesktopOnly: {
         en: "Updates only work on desktop Discord.",

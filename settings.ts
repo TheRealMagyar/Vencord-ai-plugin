@@ -76,7 +76,7 @@ export const settings = definePluginSettings({
     },
     includeChannelContext: {
         type: OptionType.BOOLEAN,
-        description: "Let the AI read messages from the current Discord chat / DM (summaries, explain context)",
+        description: "Let the AI read messages from the current Discord chat / DM (summaries, explain, fact-check context)",
         default: true,
     },
     grokPath: {

@@ -13,10 +13,10 @@ Works on **Discord Desktop** and **Vesktop**. It does **not** run in Vencord Web
 | Area | What you get |
 | --- | --- |
 | Chat bar | AI button next to GIF / sticker / Nitro |
-| Messages | Hover action and right-click: **Explain with AI** |
+| Messages | Hover actions and right-click: **Explain with AI**, **Fact-check with AI** |
 | Commands | `/ai` (optional question), `/aiupdate` |
 | History | Conversation saved per Discord channel / DM |
-| Context | Optional transcript so the AI can summarize or explain with nearby messages |
+| Context | Optional transcript so the AI can summarize, explain, or fact-check with nearby messages |
 | Providers | Grok CLI or Codex CLI, switched in settings |
 | Models | Grok 4.6 / 4.5, or GPT-5.6 Sol–Luna / 5.5 / 5.4 / 5.4-Mini |
 | Language | English (default), Magyar, Deutsch, Español |
@@ -39,9 +39,9 @@ Per-channel history. Grok or Codex through the local CLI.
 
 ![AI chat window](docs/screenshots/chat-window.png)
 
-### Explain with AI
+### Explain / Fact-check with AI
 
-Message hover and context menu.
+Message hover and context menu. Fact-check turns on Grok web search for the request.
 
 ![Explain with AI](docs/screenshots/explain.png)
 
@@ -212,11 +212,12 @@ Older clones may still live in `src\userplugins\grokAi`. The updater looks for b
 | Open the AI chat | Click the AI button in the chat bar, or run `/ai` with no text |
 | Ask in the current channel | `/ai` + your question (reply is posted as a bot message) |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
+| Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Update the plugin | `/aiupdate` |
 
 The chat window keeps history **per Discord channel or DM**. Clearing history in the modal only clears that thread.
 
-If **Include channel context** is on, the AI can use recent messages for summaries and for explain (the target message is marked with `>>>`).
+If **Include channel context** is on, the AI can use recent messages for summaries, explain, and fact-check (the target message is marked with `>>>`).
 
 Enter sends. Shift+Enter inserts a new line.
 
@@ -233,7 +234,7 @@ Enter sends. Shift+Enter inserts a new line.
 | Grok model | `grok-4.6` (default) or `grok-4.5`. Hidden when Codex is selected |
 | Codex model | CLI default, GPT-5.6 Sol / Terra / Luna, GPT-5.5, 5.4, 5.4-Mini. Hidden when Grok is selected |
 | Allow web search | Grok only |
-| Include channel context | Attach Discord history for summaries and explain |
+| Include channel context | Attach Discord history for summaries, explain, and fact-check |
 | Grok / Codex path | Optional override if auto-detect fails |
 | Auto update | Pull from GitHub when Discord starts |
 

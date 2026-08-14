@@ -19,8 +19,11 @@ import { cl, getMessageContent, getNative, t } from "./utils";
 interface OpenOptions {
     seedPrompt?: string;
     explainMessage?: Message;
+    factCheckMessage?: Message;
     channelId?: string;
 }
+
+type MessageActionKind = "explain" | "factcheck";
 
 function nextId() {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -58,8 +61,15 @@ function formatTime(at?: number) {
 function resolveChannelId(options?: OpenOptions) {
     return options?.channelId
         || options?.explainMessage?.channel_id
+        || options?.factCheckMessage?.channel_id
         || SelectedChannelStore.getChannelId()
         || "";
+}
+
+function resolveMessageAction(options?: OpenOptions): { kind: MessageActionKind; message: Message; } | null {
+    if (options?.explainMessage) return { kind: "explain", message: options.explainMessage };
+    if (options?.factCheckMessage) return { kind: "factcheck", message: options.factCheckMessage };
+    return null;
 }
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
@@ -128,13 +138,17 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
 
             if (!next.authenticated) return;
 
-            if (options?.explainMessage) {
-                const content = getMessageContent(options.explainMessage);
-                const author = options.explainMessage.author?.username;
-                const channel = ChannelStore.getChannel(options.explainMessage.channel_id);
+            const action = resolveMessageAction(options);
+            if (action) {
+                const { kind, message } = action;
+                const content = getMessageContent(message);
+                const author = message.author?.username;
+                const channel = ChannelStore.getChannel(message.channel_id);
+                const visibleKey = kind === "explain" ? "explainVisible" : "factCheckVisible";
+                const promptKey = kind === "explain" ? "explainPrompt" : "factCheckPrompt";
                 await ask({
-                    kind: "explain",
-                    visible: t("explainVisible", {
+                    kind,
+                    visible: t(visibleKey, {
                         author: author ? ` (@${author})` : "",
                         content,
                     }),
@@ -142,20 +156,21 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         const packed = await packChannelContext({
                             channelId: id,
                             prompt: content,
-                            aroundId: options.explainMessage!.id,
-                            highlightId: options.explainMessage!.id,
+                            aroundId: message.id,
+                            highlightId: message.id,
                             enabled: includeChannelContext,
                         });
-                        const userPrompt = t("explainPrompt", {
+                        const userPrompt = t(promptKey, {
                             author: author || "?",
                             channel: channel?.name || title,
                             content,
                         });
                         return Native.sendChat({
-                            prompt: withTranscript(userPrompt, packed, "explain"),
+                            prompt: withTranscript(userPrompt, packed, kind),
                             sessionId: null,
                             model: selectedModel,
                             language: lang,
+                            allowWebSearch: kind === "factcheck",
                             grokPath: grokPath || undefined,
                             provider: activeProvider,
                             codexPath: codexPath || undefined,
@@ -186,7 +201,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     }
 
     async function ask(opts: {
-        kind: "chat" | "explain";
+        kind: "chat" | "explain" | "factcheck";
         visible: string;
         request: () => Promise<{ ok: boolean; text: string; sessionId: string | null; error: string | null; }>;
         context?: { channelId: string; title: string; };

@@ -187,12 +187,14 @@ export async function packChannelContext(opts: {
     };
 }
 
-export function withTranscript(userPrompt: string, packed: PackedContext, kind: "chat" | "explain") {
+export function withTranscript(userPrompt: string, packed: PackedContext, kind: "chat" | "explain" | "factcheck") {
     if (!packed.transcript) return userPrompt;
 
     const header = kind === "explain"
         ? "Below is nearby Discord chat history. The target message is marked with >>>. Use this context to explain it accurately. Do not invent messages."
-        : "Below is Discord chat history from the current channel/DM. Use it as ground truth when the user asks about this conversation. Do not invent messages that are not listed.";
+        : kind === "factcheck"
+            ? "Below is nearby Discord chat history. The target message is marked with >>>. Use this context to understand the claim, then fact-check it. Do not invent messages."
+            : "Below is Discord chat history from the current channel/DM. Use it as ground truth when the user asks about this conversation. Do not invent messages that are not listed.";
 
     return [
         header,

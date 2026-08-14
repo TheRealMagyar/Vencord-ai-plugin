@@ -6,5 +6,5 @@ Used on the [main README](../../README.md).
 | --- | --- |
 | `chat-bar.png` | Chat bar AI button |
 | `chat-window.png` | AI chat modal |
-| `explain.png` | Explain with AI |
+| `explain.png` | Explain / Fact-check with AI |
 | `settings.png` | Plugin settings |
