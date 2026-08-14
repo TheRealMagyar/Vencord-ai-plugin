@@ -36,19 +36,55 @@ grok models
 
 Ha ezt látod: `You are logged in with grok.com.` — a plugin is ezt észleli.
 
-## Telepítés (globális pnpm nem kell)
+## Telepítés
 
-Az Equicord `link:` workspace csomagokat használ, ezért **bun / npm nem elég**. A Node-dal jövő **corepack** futtatja a pnpm-et, nem kell külön telepíteni:
+Kell hozzá az Equicord vagy Vencord **forrás** (nem elég az installer `.asar`).
+
+### Egy parancs (Command Prompt)
+
+Zárd be a Discordot, nyiss egy **cmd**-t (nem PowerShell), illeszd be:
+
+```bat
+cd /d "%USERPROFILE%\Documents\GitHub" && if not exist Equicord git clone https://github.com/Equicord/Equicord.git && cd Equicord && if not exist src\userplugins mkdir src\userplugins && if not exist src\userplugins\grokAi git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\grokAi && (bun install || corepack pnpm@11.20.0 install) && bun run build && taskkill /F /IM Discord.exe 2>nul & set EQUICORD_USER_DATA_DIR=%CD%&& set EQUICORD_DIRECTORY=%CD%\dist\desktop&& set EQUICORD_DEV_INSTALL=1&& bun run inject -- -install -branch stable
+```
+
+A `bun install` ha elhasal az Equicord workspace-en, automatikusan `corepack pnpm`-re vált. A `mkdir ... -Force` cmd-ben **nem** kell — az egy PowerShell flag, és külön `-Force` mappát csinál.
 
 ```powershell
 cd $env:USERPROFILE\Equicord
 mkdir src\userplugins -Force
 git clone https://github.com/TheRealMagyar/Vencord-ai-plugin.git src\userplugins\grokAi
-corepack pnpm@11.20.0 install
-corepack pnpm@11.20.0 run build
 ```
 
-Ha a Discord be van zárva:
+Vencordra ugyanez, csak a `Vencord` mappában.
+
+Ezután **egy** csomagkezelővel install + build. Windows PowerShellben az `npm` shim gyakran tiltva van — ott `npm.cmd`-t használj.
+
+**bun**
+
+```powershell
+bun install
+bun run build
+bun run inject
+```
+
+**npm**
+
+```powershell
+npm.cmd install
+npm.cmd run build
+npm.cmd run inject
+```
+
+Ha a `bun install` az Equicord `link:` workspace csomagjain elhasal (`@vencord/discord-types is not linked`), a Node-dal jövő corepack is elég, külön pnpm telepítés nélkül:
+
+```powershell
+corepack pnpm@11.20.0 install
+corepack pnpm@11.20.0 run build
+corepack pnpm@11.20.0 run inject
+```
+
+Ha az injector interaktív / elhasal, Discordot zárd be, majd:
 
 ```powershell
 $env:EQUICORD_USER_DATA_DIR = "$pwd"
@@ -57,7 +93,7 @@ $env:EQUICORD_DEV_INSTALL = "1"
 .\dist\Installer\EquilotlCli.exe -install -branch stable
 ```
 
-Ha az injector elhasal (`app.asar` mappa), a `resources\app.asar\index.js` mutasson ide:
+Ha az `app.asar` mappa miatt az injector továbbra sem megy, a Discord `resources\app.asar\index.js` mutasson ide:
 
 `C:\Users\User\Equicord\dist\desktop\patcher.js`
 
@@ -86,7 +122,7 @@ A beszélgetés sessionjét a CLI tartja (`--resume`).
 
 - **„A Grok CLI nincs telepítve”** — futtasd az installert, majd Discord restart
 - **„Nincs aktív Grok előfizetés”** — `grok login`, ellenőrizd: `grok models`
-- A gomb nem jelenik meg — plugin be van kapcsolva? Discord újraindult a `bun run build` után?
+- A gomb nem jelenik meg — plugin be van kapcsolva? Discord újraindult a `bun run build` / `npm.cmd run build` után?
 - Csak asztali kliens. Vesktop OK, Vencord Web nem.
 
 ## Licenc

@@ -196,44 +196,88 @@ function buildArgs(opts: {
     return args;
 }
 
+function extractJsonObject(raw: string): Record<string, unknown> | null {
+    const trimmed = raw.trim();
+    try {
+        return JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+        // continue
+    }
+
+    const start = trimmed.indexOf("{");
+    if (start < 0) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < trimmed.length; i++) {
+        const ch = trimmed[i];
+        if (inString) {
+            if (escape) escape = false;
+            else if (ch === "\\") escape = true;
+            else if (ch === "\"") inString = false;
+            continue;
+        }
+        if (ch === "\"") {
+            inString = true;
+            continue;
+        }
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+                try {
+                    return JSON.parse(trimmed.slice(start, i + 1)) as Record<string, unknown>;
+                } catch {
+                    return null;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+function textFromPayload(data: Record<string, unknown>) {
+    for (const key of ["text", "result", "output_text"] as const) {
+        const value = data[key];
+        if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return null;
+}
+
 function parseReply(stdout: string): GrokReply {
     const trimmed = stdout.trim();
     if (!trimmed) {
         return { ok: false, text: "", sessionId: null, error: "A Grok CLI üres választ adott." };
     }
 
-    const start = trimmed.lastIndexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start < 0 || end <= start) {
+    const data = extractJsonObject(trimmed);
+    if (!data) {
         return { ok: true, text: trimmed, sessionId: null, error: null };
     }
 
-    try {
-        const data = JSON.parse(trimmed.slice(start, end + 1)) as {
-            type?: string;
-            text?: string;
-            message?: string;
-            sessionId?: string;
-        };
-
-        if (data.type === "error" || (data.message && !data.text)) {
-            return {
-                ok: false,
-                text: "",
-                sessionId: data.sessionId ?? null,
-                error: data.message || "Grok hiba",
-            };
-        }
-
+    const sessionId = typeof data.sessionId === "string" ? data.sessionId : null;
+    if (data.type === "error") {
         return {
-            ok: true,
-            text: (data.text || "").trim() || trimmed,
-            sessionId: data.sessionId ?? null,
-            error: null,
+            ok: false,
+            text: "",
+            sessionId,
+            error: typeof data.message === "string" ? data.message : "Grok hiba",
         };
-    } catch {
-        return { ok: true, text: trimmed, sessionId: null, error: null };
     }
+
+    const text = textFromPayload(data);
+    if (text) {
+        return { ok: true, text, sessionId, error: null };
+    }
+
+    return {
+        ok: false,
+        text: "",
+        sessionId,
+        error: typeof data.message === "string" ? data.message : "A Grok válaszából nem sikerült szöveget kiolvasni.",
+    };
 }
 
 function spawnGrok(grokPath: string, args: string[]) {

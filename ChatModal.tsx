@@ -22,6 +22,18 @@ function nextId() {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function unwrapReplyText(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith("{")) return text;
+    try {
+        const data = JSON.parse(trimmed) as { text?: unknown; };
+        if (typeof data.text === "string" && data.text.trim()) return data.text.trim();
+    } catch {
+        // keep original
+    }
+    return text;
+}
+
 function renderMarkdown(text: string) {
     try {
         return Parser.parse(text, true, { allowHeading: true, allowLinks: true, allowList: true });
@@ -131,7 +143,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     ...msg,
                     pending: false,
                     text: reply.ok
-                        ? reply.text
+                        ? unwrapReplyText(reply.text)
                         : (reply.error || t("Ismeretlen Grok hiba.", "Unknown Grok error.", lang)),
                 }
                 : msg
@@ -173,26 +185,26 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const title = status?.displayName ? `Grok · ${status.displayName}` : "Grok";
 
     return (
-        <Modal {...rootProps} size="lg" title={title}>
+        <Modal {...rootProps} size="lg" title={title} subtitle={
+            <span className={cl("status")}>
+                <span className={cl("dot", { ok: connected })} />
+                {connected
+                    ? t("Csatlakozva a Grok CLI-hez", "Connected to Grok CLI", lang)
+                    : (status?.error || t("Kapcsolódás…", "Connecting…", lang))}
+            </span>
+        }>
             <div className={cl("root")}>
-                <div className={cl("status")}>
-                    <span className={cl("dot", { ok: connected })} />
-                    <span>
-                        {connected
-                            ? (status?.subscription || t("Csatlakozva a Grok CLI-hez", "Connected to Grok CLI", lang))
-                            : (status?.error || t("Kapcsolódás…", "Connecting…", lang))}
-                    </span>
-                    {status?.version && <span>· {status.version}</span>}
-                </div>
-
                 <div className={cl("messages")} ref={scroller}>
                     {messages.length === 0 && (
                         <div className={cl("empty")}>
-                            <GrokIcon height={28} width={28} />
+                            <div className={cl("empty-icon")}>
+                                <GrokIcon height={32} width={32} />
+                            </div>
+                            <strong>{t("Szia! Én vagyok a Grok.", "Hi — I'm Grok.", lang)}</strong>
                             <div>
                                 {t(
-                                    "Kérdezz bármit Grok-tól. Az előfizetésedet a helyi Grok CLI-n keresztül használja.",
-                                    "Ask Grok anything. This uses your existing Grok CLI subscription.",
+                                    "Írj ide, és a helyi Grok előfizetéseddel válaszolok.",
+                                    "Type below and I'll answer with your local Grok subscription.",
                                     lang,
                                 )}
                             </div>
@@ -201,6 +213,11 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
 
                     {messages.map(msg => (
                         <div key={msg.id} className={cl("row", msg.role)}>
+                            <div className={cl("meta")}>
+                                {msg.role === "user"
+                                    ? t("Te", "You", lang)
+                                    : "Grok"}
+                            </div>
                             <div className={cl("bubble", msg.role, { pending: Boolean(msg.pending) })}>
                                 {msg.role === "assistant" && !msg.pending
                                     ? renderMarkdown(msg.text)
@@ -223,13 +240,13 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     ))}
                 </div>
 
-                <div className={cl("input-row")}>
+                <div className={cl("composer")}>
                     <textarea
                         className={cl("input")}
                         rows={2}
                         value={input}
                         disabled={busy || !connected}
-                        placeholder={t("Írj Grok-nak…", "Message Grok…", lang)}
+                        placeholder={t("Írj Grok-nak…  Enter küld, Shift+Enter új sor", "Message Grok…  Enter to send, Shift+Enter for a new line", lang)}
                         onChange={e => setInput(e.currentTarget.value)}
                         onKeyDown={e => {
                             if (e.key === "Enter" && !e.shiftKey) {
@@ -239,7 +256,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         }}
                     />
                     <button className={cl("send")} disabled={busy || !connected || !input.trim()} onClick={onSend}>
-                        {t("Küldés", "Send", lang)}
+                        {busy ? t("Várj…", "Wait…", lang) : t("Küldés", "Send", lang)}
                     </button>
                 </div>
             </div>
