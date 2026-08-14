@@ -13,6 +13,7 @@ Works on **Discord Desktop** and **Vesktop**. It does **not** run in Vencord Web
 | Area | What you get |
 | --- | --- |
 | Chat bar | AI button next to GIF / sticker / Nitro |
+| Channel header | AI button next to search / pins (works when you cannot type) |
 | Messages | Hover actions and right-click: **Explain with AI**, **Fact-check with AI** |
 | Commands | `/ai` (optional question), `/aiupdate` |
 | History | Conversation saved per Discord channel / DM |
@@ -129,6 +130,7 @@ Also enable the plugin APIs this plugin depends on, if they are listed separatel
 - Chat Input Button API
 - Message Popover API
 - Commands API
+- Header Bar API
 
 ### Manual (no venpm)
 
@@ -210,7 +212,7 @@ Older clones may still live in `src\userplugins\grokAi`. The updater looks for b
 
 | Action | How |
 | --- | --- |
-| Open the AI chat | Click the AI button in the chat bar, or run `/ai` with no text |
+| Open the AI chat | Chat bar AI button, channel header AI button, right-click the channel → **Open AI**, or `/ai` with no text |
 | Ask in the current channel | `/ai` + your question (reply is posted as a bot message) |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |

@@ -7,13 +7,14 @@
 import "./styles.css";
 
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
+import { ChannelToolbarButton } from "@api/HeaderBar";
 import { addMessagePopoverButton, removeMessagePopoverButton } from "@api/MessagePopover";
 import { migratePluginSetting, migratePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import definePlugin from "@utils/types";
-import { Message } from "@vencord/discord-types";
-import { ChannelStore, Menu, showToast, Toasts, useEffect, useState } from "@webpack/common";
+import { Channel, Message } from "@vencord/discord-types";
+import { ChannelStore, Menu, SelectedChannelStore, showToast, Toasts, useEffect, useState } from "@webpack/common";
 
 import { packChannelContext, withTranscript } from "./channelContext";
 import { openGrokModal } from "./ChatModal";
@@ -37,6 +38,38 @@ const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat, isAnyChat, channe
         >
             <GrokIcon className={cl("icon", "chat-button")} />
         </ChatBarButton>
+    );
+};
+
+function ChannelHeaderAiButton() {
+    settings.use(["iconSvg", "iconPreset"]);
+    return (
+        <ChannelToolbarButton
+            icon={GrokIcon}
+            tooltip="AI"
+            aria-label="AI"
+            onClick={() => openGrokModal({ channelId: SelectedChannelStore.getChannelId() })}
+        />
+    );
+}
+
+function channelIdFromMenu(props: { channel?: Channel; channelId?: string; }) {
+    return props.channel?.id || props.channelId || "";
+}
+
+const channelCtxPatch: NavContextMenuPatchCallback = (children, props: { channel?: Channel; channelId?: string; }) => {
+    const channelId = channelIdFromMenu(props);
+    if (!channelId) return;
+
+    children.push(
+        <Menu.MenuGroup>
+            <Menu.MenuItem
+                id="vc-grokai-open"
+                label={t("openAi")}
+                icon={GrokIcon}
+                action={() => openGrokModal({ channelId })}
+            />
+        </Menu.MenuGroup>
     );
 };
 
@@ -180,7 +213,7 @@ export default definePlugin({
     authors: [{ name: "TheRealMagyar", id: 0n }],
     searchTerms: ["GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck"],
     tags: ["Chat", "Utility"],
-    dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI"],
+    dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI"],
     settings,
     settingsAboutComponent: SettingsAbout,
     requiresRestart: true,
@@ -209,11 +242,20 @@ export default definePlugin({
 
     contextMenus: {
         message: messageCtxPatch,
+        "channel-context": channelCtxPatch,
+        "thread-context": channelCtxPatch,
+        "gdm-context": channelCtxPatch,
     },
 
     chatBarButton: {
         icon: GrokIcon,
         render: GrokChatBarButton,
+    },
+
+    headerBarButton: {
+        icon: GrokIcon,
+        location: "channeltoolbar",
+        render: ChannelHeaderAiButton,
     },
 
     messagePopoverButton: {

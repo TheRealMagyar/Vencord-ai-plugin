@@ -153,6 +153,12 @@ const dict = {
         de: "Senden",
         es: "Enviar",
     },
+    openAi: {
+        en: "Open AI",
+        hu: "AI megnyitása",
+        de: "KI öffnen",
+        es: "Abrir IA",
+    },
     explainWithAi: {
         en: "Explain with AI",
         hu: "Magyarázat AI-val",
