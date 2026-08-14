@@ -130,7 +130,7 @@ async function runPluginUpdate(language: string) {
     }
 
     showToast(t("updating"), Toasts.Type.MESSAGE);
-    const result = await Native.applyUpdate();
+    const result = await Native.applyUpdate(language);
     if (result.ok) {
         showToast(
             t("updatedRestart"),
@@ -154,11 +154,11 @@ function SettingsAbout() {
     }, [activeProvider]);
 
     useEffect(() => {
-        void refreshCliStatus(activeProvider);
+        void refreshCliStatus(activeProvider, true);
         const Native = getNative();
         if (!Native) return;
-        Native.checkForUpdate().then(setUpdate).catch(() => { /* ignore */ });
-    }, [grokPath, provider, codexPath]);
+        Native.checkForUpdate(language).then(setUpdate).catch(() => { /* ignore */ });
+    }, [language, grokPath, provider, codexPath]);
 
     return (
         <div className={cl("settings")}>
@@ -317,7 +317,7 @@ export default definePlugin({
                     kind: "chat",
                 });
 
-                const text = reply.ok ? reply.text : (reply.error || "AI error");
+                const text = reply.ok ? reply.text : (reply.error || t("unknownError"));
                 return sendBotMessage(ctx.channel.id, {
                     content: text.length > 1900 ? `${text.slice(0, 1900)}…` : text,
                 });

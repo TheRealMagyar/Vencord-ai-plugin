@@ -8,6 +8,7 @@ import * as DataStore from "@api/DataStore";
 import { ChannelStore, UserStore } from "@webpack/common";
 
 import type { ChatMessage, StoredThread } from "./types";
+import { t } from "./i18n";
 
 const KEY = "GrokAi.history.v1";
 const MAX_MESSAGES = 100;
@@ -34,7 +35,7 @@ export function getThreadTitle(channelId: string | null | undefined) {
             return user ? `@${user.username}` : "DM";
         }
         if (channel.isGroupDM?.()) {
-            return channel.name ? channel.name : "Csoport";
+            return channel.name ? channel.name : t("groupDm");
         }
     } catch {
         // fall through

@@ -107,15 +107,21 @@ const dict = {
     },
     historyLabel: {
         en: "History:",
-        hu: "History:",
+        hu: "Előzmény:",
         de: "Verlauf:",
         es: "Historial:",
     },
     clearHistory: {
         en: "Clear history",
-        hu: "Clear history",
+        hu: "Előzmény törlése",
         de: "Verlauf löschen",
         es: "Borrar historial",
+    },
+    groupDm: {
+        en: "Group DM",
+        hu: "Csoport",
+        de: "Gruppen-DM",
+        es: "Grupo",
     },
     hello: {
         en: "Hi — I'm {provider}.",

@@ -4,6 +4,8 @@ Local **Grok (xAI)** or **Codex (OpenAI / ChatGPT)** inside Discord. The plugin 
 
 Works on **Discord Desktop** and **Vesktop**. It does **not** run in Vencord Web.
 
+The UI language is **English** by default. Switch it in settings (Magyar, Deutsch, Español) to change the plugin UI and the language the model replies in.
+
 ![AI chat window](docs/screenshots/chat-window.png)
 
 ---
@@ -13,13 +15,17 @@ Works on **Discord Desktop** and **Vesktop**. It does **not** run in Vencord Web
 | Area | What you get |
 | --- | --- |
 | Chat bar | AI button next to GIF / sticker / Nitro |
-| Channel header | AI button next to search / pins (works when you cannot type) |
-| Messages | Hover actions and right-click: **Explain with AI**, **Fact-check with AI** |
+| Channel header | AI button next to search / pins (works in read-only channels) |
+| Messages | Hover and right-click: **Explain with AI**, **Fact-check with AI** |
 | Commands | `/ai` (optional question), `/aiupdate` |
-| History | Conversation saved per Discord channel / DM, listed in the chat sidebar |
-| Context | Optional transcript so the AI can summarize, explain, or fact-check with nearby messages |
-| Thinking | Optional live view of reasoning and tool use (Grok and Codex) |
-| Providers | Grok CLI or Codex CLI, switched in settings |
+| History | Saved per Discord channel / DM, listed in the left sidebar |
+| Background CLI | Grok / Codex status is checked when Discord starts, not when you open the window |
+| Background jobs | Closing the window does not stop a running reply; reopen to see thinking and tools |
+| Stop | Interrupt a running reply; partial text is kept |
+| Thinking | Optional live reasoning and tool use (web search, etc.) |
+| Fact-check | Quick / Balanced / Deep depth in settings |
+| Context | Optional nearby Discord transcript (`>>>` marks the target message) |
+| Providers | Grok CLI or Codex CLI |
 | Models | Grok 4.6 / 4.5, or GPT-5.6 Sol–Luna / 5.5 / 5.4 / 5.4-Mini |
 | Language | English (default), Magyar, Deutsch, Español |
 | Icon | Default, Grok, OpenAI, Atom, or a custom SVG (`currentColor`) |
@@ -37,19 +43,19 @@ AI button next to GIF / sticker / Nitro.
 
 ### Chat window
 
-Per-channel history. Grok or Codex through the local CLI.
+Per-channel history, sidebar of saved chats, thinking / tools, Stop.
 
 ![AI chat window](docs/screenshots/chat-window.png)
 
 ### Explain / Fact-check with AI
 
-Message hover and context menu. Fact-check turns on Grok web search and lets the CLI run multiple tool turns so you get a full verdict, not just “I’ll look that up.”
+Message hover and context menu. Fact-check uses Grok web search (depth is a setting).
 
 ![Explain with AI](docs/screenshots/explain.png)
 
 ### Settings
 
-Provider, model, language, icon, paths, updates.
+Provider, model, language, icon, fact-check depth, paths, updates.
 
 ![Plugin settings](docs/screenshots/settings.png)
 
@@ -216,11 +222,13 @@ Older clones may still live in `src\userplugins\grokAi`. The updater looks for b
 | Ask in the current channel | `/ai` + your question (reply is posted as a bot message) |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
+| Stop a running reply | **Stop** in the chat composer |
+| Switch saved chats | Left sidebar; delete with × (disabled while that chat is thinking) |
 | Update the plugin | `/aiupdate` |
 
 The plugin connects to the Grok / Codex CLI in the background when Discord starts, so opening the AI window does not wait on a fresh handshake.
 
-The chat window keeps history **per Discord channel or DM**. Clearing history in the modal only clears that thread. Closing the window does not stop a running reply — reopen it to see thinking and tool progress. **Stop** interrupts the current run. The left sidebar lists channels / DMs that already have AI history.
+The chat window keeps history **per Discord channel or DM**. Closing the window does not stop a running reply — reopen it to see thinking and tool progress. **Stop** interrupts the current run. The left sidebar lists channels / DMs that already have AI history. A running chat shows a spinner and cannot be deleted until it finishes or is stopped.
 
 Turn on **Show thinking** (settings or the toolbar toggle) to watch Grok / Codex reason and use tools such as web search while they work. The final answer stays separate from that trace.
 
@@ -237,11 +245,11 @@ Enter sends. Shift+Enter inserts a new line.
 | Provider | Grok (xAI) or Codex (OpenAI / ChatGPT) |
 | AI icon | Default, Grok, OpenAI, Atom, or Custom SVG |
 | Custom SVG | Shown only when the icon is Custom SVG |
-| Language | English, Magyar, Deutsch, Español (UI and reply language) |
+| Language | English (default), Magyar, Deutsch, Español — UI and model reply language |
 | Grok model | `grok-4.6` (default) or `grok-4.5`. Hidden when Codex is selected |
 | Codex model | CLI default, GPT-5.6 Sol / Terra / Luna, GPT-5.5, 5.4, 5.4-Mini. Hidden when Grok is selected |
-| Allow web search | Grok only |
-| Show thinking | Live thinking + tool use (web search, etc.) for Grok and Codex |
+| Allow web search | Grok only, for normal chat |
+| Show thinking | Live thinking + tool use (Grok and Codex) |
 | Fact-check depth | Quick (1 search), Balanced (2 searches, default), or Deep (search + read sources) |
 | Include channel context | Attach Discord history for summaries, explain, and fact-check |
 | Grok / Codex path | Optional override if auto-detect fails |
@@ -288,7 +296,7 @@ venpm install AI-Plugin
 2. Reads local login metadata from `auth.json`. Access tokens are never sent to the renderer.
 3. Runs a headless turn in an isolated temp directory (`grok --prompt-file` or `codex exec --json`), with file / shell tools disabled.
 
-Sessions are resumed per channel and per provider (`--resume` / `codex exec resume`).
+Sessions are resumed per channel and per provider (`--resume` / `codex exec resume`). CLI status is cached in the renderer after a background probe on Discord start.
 
 ---
 
@@ -300,7 +308,9 @@ Sessions are resumed per channel and per provider (`--resume` / `codex exec resu
 | CLI not installed | Install Grok or Codex, then restart Discord |
 | No active subscription | `grok login` or `codex login` |
 | No chat-bar button | Enable **AI-Plugin**; turn on Chat Input Button API; rebuild; restart Discord |
+| No header AI button | Enable Header Bar API; rebuild; restart Discord |
 | `/ai` missing | Enable Commands API; restart after build |
+| Timed out | Use a quicker **Fact-check depth**, or retry |
 | Inject / `app.asar` errors | Close Discord completely (tray included) and inject again |
 | bun cannot link `@vencord/discord-types` | `corepack pnpm@11.20.0 install` |
 | Plugin listed twice | Both `src\userplugins\grokAi` and `src\userplugins\AI-Plugin` exist. Keep one |

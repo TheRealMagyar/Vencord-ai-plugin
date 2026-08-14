@@ -11,6 +11,7 @@ import { homedir, tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 
+import { nativeT } from "./nativeI18n";
 import type { AiProvider, ChatProgress, ChatRequest, ChatToolStep, ExplainRequest, FactCheckDepth, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
 
 const execFileAsync = promisify(execFile);
@@ -213,7 +214,7 @@ function readCodexAuth() {
     }
 }
 
-async function getCodexStatus(customPath?: string): Promise<GrokStatus> {
+async function getCodexStatus(customPath?: string, language?: string): Promise<GrokStatus> {
     const auth = readCodexAuth();
     const codexPath = resolveCodexPath(customPath);
     if (!codexPath) {
@@ -226,7 +227,7 @@ async function getCodexStatus(customPath?: string): Promise<GrokStatus> {
             subscription: auth.present ? auth.subscription : null,
             authMode: auth.authMode,
             expiresAt: null,
-            error: "A Codex CLI nincs telepítve. Telepítsd a ChatGPT / Codex asztali appot, vagy: npm i -g @openai/codex",
+            error: nativeT(language, "codexMissing"),
         };
     }
 
@@ -248,14 +249,14 @@ async function getCodexStatus(customPath?: string): Promise<GrokStatus> {
         subscription: auth.subscription,
         authMode: auth.authMode,
         expiresAt: null,
-        error: authenticated ? null : "Nincs aktív Codex / ChatGPT bejelentkezés. Futtasd: codex login",
+        error: authenticated ? null : nativeT(language, "codexNotLoggedIn"),
     };
 }
 
-export async function getStatus(_event: unknown, providerOrPath?: string, maybePath?: string): Promise<GrokStatus> {
+export async function getStatus(_event: unknown, providerOrPath?: string, maybePath?: string, language?: string): Promise<GrokStatus> {
     const provider: AiProvider = providerOrPath === "codex" ? "codex" : "grok";
     const customPath = providerOrPath === "codex" || providerOrPath === "grok" ? maybePath : providerOrPath;
-    if (provider === "codex") return getCodexStatus(customPath);
+    if (provider === "codex") return getCodexStatus(customPath, language);
 
     const grokPath = resolveGrokPath(customPath);
     const auth = readAuthMeta();
@@ -270,7 +271,7 @@ export async function getStatus(_event: unknown, providerOrPath?: string, maybeP
             subscription: process.env.XAI_API_KEY ? "XAI_API_KEY" : null,
             authMode: auth.authMode ?? null,
             expiresAt: auth.expiresAt ?? null,
-            error: "A Grok CLI nincs telepítve. Telepítsd: irm https://x.ai/cli/install.ps1 | iex",
+            error: nativeT(language, "grokMissing"),
         };
     }
 
@@ -299,7 +300,7 @@ export async function getStatus(_event: unknown, providerOrPath?: string, maybeP
                 subscription: null,
                 authMode: auth.authMode ?? null,
                 expiresAt: auth.expiresAt ?? null,
-                error: `A Grok CLI nem tudott bejelentkezni: ${err.message ?? "unknown"}. Futtasd: grok login`,
+                error: nativeT(language, "grokLoginFailed", { error: err.message ?? "unknown" }),
             };
         }
     }
@@ -316,7 +317,7 @@ export async function getStatus(_event: unknown, providerOrPath?: string, maybeP
         subscription,
         authMode: auth.authMode ?? (process.env.XAI_API_KEY ? "api_key" : null),
         expiresAt: auth.expiresAt ?? null,
-        error: authenticated ? null : "Nincs aktív Grok előfizetés / bejelentkezés. Futtasd: grok login",
+        error: authenticated ? null : nativeT(language, "grokNotLoggedIn"),
     };
 }
 
@@ -533,10 +534,10 @@ function sessionIdFrom(data: Record<string, unknown>) {
     return stringField(data.sessionId) || stringField(data.session_id);
 }
 
-function parseReply(stdout: string): GrokReply {
+function parseReply(stdout: string, language?: string): GrokReply {
     const trimmed = stdout.trim();
     if (!trimmed) {
-        return { ok: false, text: "", sessionId: null, error: "A Grok CLI üres választ adott." };
+        return { ok: false, text: "", sessionId: null, error: nativeT(language, "grokEmpty") };
     }
 
     const objects = extractJsonObjects(trimmed);
@@ -562,8 +563,8 @@ function parseReply(stdout: string): GrokReply {
         text: "",
         sessionId,
         error: lastError
-            ? (stringField(lastError.message) || "Grok hiba")
-            : "A Grok válaszából nem sikerült szöveget kiolvasni.",
+            ? (stringField(lastError.message) || nativeT(language, "grokError"))
+            : nativeT(language, "grokParse"),
     };
 }
 
@@ -614,7 +615,7 @@ function applyGrokEvent(progress: ChatProgress, event: Record<string, unknown>) 
         return;
     }
     if (type === "error") {
-        progress.error = asText(event.message) || asText(event.error) || "Grok hiba";
+        progress.error = asText(event.message) || asText(event.error) || nativeT(undefined, "grokError");
         progress.status = "error";
     }
 }
@@ -701,7 +702,7 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
             ok: false,
             text: "",
             sessionId: null,
-            error: "A Grok CLI nem található. Telepítsd, majd jelentkezz be: grok login",
+            error: nativeT(request.language, "grokNotFound"),
         };
     }
 
@@ -735,7 +736,7 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
                 ok: false,
                 text: "",
                 sessionId: streamedSession,
-                error: `Időtúllépés (${timeoutMs / 1000}s). Próbáld a gyorsabb fact-check mélységet a beállításokban.`,
+                error: nativeT(request.language, "timedOutFactCheck", { seconds: timeoutMs / 1000 }),
                 thought: progress.thought || undefined,
                 tools: progress.tools,
             };
@@ -746,7 +747,7 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
                     ok: false,
                     text: "",
                     sessionId: streamedSession,
-                    error: progress.error || stderr.trim() || `Grok kilépett (kód ${code}).`,
+                    error: progress.error || stderr.trim() || nativeT(request.language, "grokExit", { code: code ?? "?" }),
                     thought: progress.thought || undefined,
                     tools: progress.tools,
                 };
@@ -761,14 +762,14 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
             };
         }
 
-        const parsed = parseReply(stdout);
+        const parsed = parseReply(stdout, request.language);
         if (!parsed.ok) return { ...parsed, thought: progress.thought || undefined, tools: progress.tools };
         if (code && code !== 0 && !parsed.text) {
             return {
                 ok: false,
                 text: "",
                 sessionId: parsed.sessionId,
-                error: stderr.trim() || parsed.error || `Grok kilépett (kód ${code}).`,
+                error: stderr.trim() || parsed.error || nativeT(request.language, "grokExit", { code: code ?? "?" }),
                 thought: progress.thought || undefined,
                 tools: progress.tools,
             };
@@ -833,7 +834,7 @@ function applyCodexEvent(progress: ChatProgress, event: Record<string, unknown>)
     }
 
     if (type === "error")
-        progress.error = asText(event.message) || "Codex hiba";
+        progress.error = asText(event.message) || nativeT(undefined, "codexError");
     if (type === "turn.failed") {
         const err = event.error;
         progress.error = typeof err === "string"
@@ -845,7 +846,7 @@ function applyCodexEvent(progress: ChatProgress, event: Record<string, unknown>)
     }
 }
 
-function parseCodexJsonl(stdout: string, progress: ChatProgress): GrokReply {
+function parseCodexJsonl(stdout: string, progress: ChatProgress, language?: string): GrokReply {
     for (const line of stdout.split(/\r?\n/)) {
         const trimmed = line.trim();
         if (!trimmed.startsWith("{")) continue;
@@ -863,7 +864,7 @@ function parseCodexJsonl(stdout: string, progress: ChatProgress): GrokReply {
     const fallback = stdout.trim();
     return fallback
         ? { ok: true, text: fallback, sessionId: progress.sessionId, error: null, thought: progress.thought || undefined, tools: progress.tools }
-        : { ok: false, text: "", sessionId: progress.sessionId, error: "A Codex CLI üres választ adott.", thought: progress.thought || undefined, tools: progress.tools };
+        : { ok: false, text: "", sessionId: progress.sessionId, error: nativeT(language, "codexEmpty"), thought: progress.thought || undefined, tools: progress.tools };
 }
 
 async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Promise<GrokReply> {
@@ -873,7 +874,7 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
             ok: false,
             text: "",
             sessionId: null,
-            error: "A Codex CLI nem található. Jelentkezz be: codex login",
+            error: nativeT(request.language, "codexNotFound"),
         };
     }
 
@@ -940,7 +941,7 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
                 });
                 return;
             }
-            finish({ ok: false, text: "", sessionId: progress.sessionId, error: `Időtúllépés (${timeoutMs / 1000}s).` });
+            finish({ ok: false, text: "", sessionId: progress.sessionId, error: nativeT(request.language, "timedOut", { seconds: timeoutMs / 1000 }) });
         }, timeoutMs);
         child.stdout?.setEncoding("utf8");
         child.stderr?.setEncoding("utf8");
@@ -967,9 +968,9 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
                     thought: progress.thought || undefined,
                     tools: progress.tools,
                 }
-                : parseCodexJsonl(stdout, progress);
+                : parseCodexJsonl(stdout, progress, request.language);
             if (!parsed.ok && code && code !== 0 && !parsed.error)
-                parsed.error = stderr.trim() || `Codex kilépett (kód ${code}).`;
+                parsed.error = stderr.trim() || nativeT(request.language, "codexExit", { code: code ?? "?" });
             finish(parsed);
         });
     });
@@ -1108,7 +1109,7 @@ function runShell(command: string, cwd: string, timeout: number) {
         let stderr = "";
         const timer = setTimeout(() => {
             child.kill();
-            reject(new Error(`Időtúllépés: ${command}`));
+            reject(new Error(`Timed out: ${command}`));
         }, timeout);
         child.stdout?.setEncoding("utf8");
         child.stderr?.setEncoding("utf8");
@@ -1135,7 +1136,7 @@ async function git(pluginDir: string, args: string) {
     return stdout.trim();
 }
 
-export async function checkForUpdate(_event: unknown): Promise<UpdateStatus> {
+export async function checkForUpdate(_event: unknown, language?: string): Promise<UpdateStatus> {
     const pluginDir = findPluginDir();
     if (!pluginDir) {
         return {
@@ -1144,7 +1145,7 @@ export async function checkForUpdate(_event: unknown): Promise<UpdateStatus> {
             pluginDir: null,
             local: null,
             remote: null,
-            error: "Nem találom az AI-Plugin git mappát (src/userplugins/AI-Plugin vagy grokAi).",
+            error: nativeT(language, "updateFolderMissing"),
         };
     }
 
@@ -1177,7 +1178,7 @@ export async function checkForUpdate(_event: unknown): Promise<UpdateStatus> {
     }
 }
 
-export async function applyUpdate(_event: unknown): Promise<UpdateResult> {
+export async function applyUpdate(_event: unknown, language?: string): Promise<UpdateResult> {
     const pluginDir = findPluginDir();
     if (!pluginDir) {
         return {
@@ -1186,7 +1187,7 @@ export async function applyUpdate(_event: unknown): Promise<UpdateResult> {
             built: false,
             needsRestart: false,
             pluginDir: null,
-            error: "Nem találom a GrokAi git mappát.",
+            error: nativeT(language, "updateFolderMissing"),
         };
     }
 
@@ -1218,7 +1219,7 @@ export async function applyUpdate(_event: unknown): Promise<UpdateResult> {
             built,
             needsRestart: true,
             pluginDir,
-            error: built ? null : "A forrást frissítettem, de az Equicord/Vencord buildet nem találtam. Futtasd a build parancsot.",
+            error: built ? null : nativeT(language, "updateNoBuild"),
         };
     } catch (error) {
         return {

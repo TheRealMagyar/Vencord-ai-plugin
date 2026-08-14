@@ -66,7 +66,7 @@ export async function refreshCliStatus(provider: AiProvider, force = false) {
         return cache[provider]!;
     }
 
-    const work = Native.getStatus(provider, customPath(provider))
+    const work = Native.getStatus(provider, customPath(provider), settings.store.language)
         .then(status => {
             cache[provider] = status;
             emit();

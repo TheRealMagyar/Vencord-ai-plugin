@@ -41,7 +41,7 @@ function messageBody(raw: any) {
     if (content) parts.push(String(content));
 
     for (const file of raw?.attachments ?? []) {
-        if (file?.filename) parts.push(`[fájl: ${file.filename}]`);
+        if (file?.filename) parts.push(`[file: ${file.filename}]`);
     }
     for (const embed of raw?.embeds ?? []) {
         if (embed?.title) parts.push(`[embed: ${embed.title}]`);

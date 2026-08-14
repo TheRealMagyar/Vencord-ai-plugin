@@ -117,8 +117,8 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     }, [activeProvider]);
 
     useEffect(() => {
-        void refreshCliStatus(activeProvider);
-    }, [activeProvider, grokPath, codexPath]);
+        void refreshCliStatus(activeProvider, true);
+    }, [activeProvider, grokPath, codexPath, language]);
 
     useEffect(() => {
         if (started.current) return;
