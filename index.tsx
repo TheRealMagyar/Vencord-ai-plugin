@@ -209,13 +209,13 @@ export default definePlugin({
 
     commands: [
         {
-            name: "grok",
-            description: "Ask Grok or open the Grok chat",
+            name: "ai",
+            description: "Ask the AI or open the AI chat",
             inputType: ApplicationCommandInputType.BUILT_IN,
             options: [
                 {
                     name: "question",
-                    description: "Question for Grok",
+                    description: "Question for the AI",
                     type: ApplicationCommandOptionType.STRING,
                     required: false,
                 },
@@ -252,14 +252,14 @@ export default definePlugin({
                     codexPath: settings.store.codexPath || undefined,
                 });
 
-                const text = reply.ok ? reply.text : (reply.error || "Grok error");
+                const text = reply.ok ? reply.text : (reply.error || "AI error");
                 return sendBotMessage(ctx.channel.id, {
                     content: text.length > 1900 ? `${text.slice(0, 1900)}…` : text,
                 });
             },
         },
         {
-            name: "grokupdate",
+            name: "aiupdate",
             description: "Pull the latest AI-Plugin from GitHub and rebuild",
             inputType: ApplicationCommandInputType.BUILT_IN,
             execute: async () => {

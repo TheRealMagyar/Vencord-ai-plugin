@@ -12,7 +12,7 @@ Works on **Discord Desktop** and **Vesktop**. It does not run in Vencord Web.
 | --- | --- |
 | Chat bar | AI button next to GIF / sticker / Nitro |
 | Messages | Hover action and context-menu item: **Explain with AI** |
-| Commands | `/grok` (optional question), `/grokupdate` |
+| Commands | `/ai` (optional question), `/aiupdate` |
 | History | Per-channel and per-DM conversation, persisted locally |
 | Context | Optional Discord transcript for summaries and explanations |
 | Providers | Grok CLI or Codex CLI, switched in settings |
@@ -111,6 +111,27 @@ Start Discord → **Settings → Plugins → AI-Plugin → Enable**.
 
 ---
 
+## Screenshots
+
+Drop PNG or WebP files into [`docs/screenshots/`](docs/screenshots/) using the names below. They show up here after you commit.
+
+| What | File |
+| --- | --- |
+| Chat bar AI button | `docs/screenshots/chat-bar.png` |
+| AI chat window | `docs/screenshots/chat-window.png` |
+| Explain with AI | `docs/screenshots/explain.png` |
+| Plugin settings | `docs/screenshots/settings.png` |
+
+![Chat bar AI button](docs/screenshots/chat-bar.png)
+
+![AI chat window](docs/screenshots/chat-window.png)
+
+![Explain with AI](docs/screenshots/explain.png)
+
+![Plugin settings](docs/screenshots/settings.png)
+
+---
+
 ## Update
 
 Close Discord, then:
@@ -127,7 +148,7 @@ cd /d "%USERPROFILE%\Equicord" && git -C src\userplugins\grokAi fetch origin && 
 
 `git reset --hard` makes GitHub win over local edits in the plugin folder.
 
-The plugin can also update itself on Discord startup (`autoUpdate`). Manual options: plugin settings → **Update now**, or `/grokupdate`. Restart Discord after a successful update.
+The plugin can also update itself on Discord startup (`autoUpdate`). Manual options: plugin settings → **Update now**, or `/aiupdate`. Restart Discord after a successful update.
 
 ---
 
@@ -136,7 +157,7 @@ The plugin can also update itself on Discord startup (`autoUpdate`). Manual opti
 | Setting | Description |
 | --- | --- |
 | Provider | Grok (xAI) or Codex (OpenAI / ChatGPT) |
-| AI icon | Sparkle, Grok, OpenAI, ChatGPT, Codex, Orbit, or custom SVG |
+| AI icon | Default, Grok, OpenAI, Atom, or custom SVG |
 | Language | English, Magyar, Deutsch, Español |
 | Grok / Codex model | Shown only for the active provider |
 | Allow web search | Grok only |
@@ -146,7 +167,7 @@ The plugin can also update itself on Discord startup (`autoUpdate`). Manual opti
 
 ### Icon
 
-**AI icon** has six built-in marks: Sparkle, Grok / xAI, OpenAI, ChatGPT, Codex / terminal, and Orbit.
+**AI icon** has four built-in marks: Default, Grok, OpenAI, and Atom.
 
 **Custom SVG** shows an extra field. Paste either a full document:
 
