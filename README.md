@@ -4,7 +4,7 @@ Local **Grok (xAI)** or **Codex (OpenAI / ChatGPT)** inside Discord. The plugin 
 
 Works on **Discord Desktop**, **Vesktop**, and **Equibop**. It does **not** run in Equicord / Vencord Web.
 
-This is a **userplugin**, not an official Equicord plugin. Install it under `src/userplugins/` as documented at [docs.equicord.org/plugins](https://docs.equicord.org/plugins).
+This is a **userplugin**, not an official Equicord plugin. Install it under `src/userplugins/` as documented at [docs.equicord.org/plugins](https://docs.equicord.org/plugins). The [plugin rules](https://docs.equicord.org/plugin-submission) are listed under [Equicord plugin rules](#equicord-plugin-rules).
 
 The UI language is **English** by default. In settings you can switch to Magyar, Deutsch, or Español — that changes the plugin UI, error messages (including timeouts), and the language the model replies in.
 
@@ -33,6 +33,30 @@ src/userplugins/aiPlugin/
   README.md
   …
 ```
+
+---
+
+## Equicord plugin rules
+
+This repo stays a **userplugin**. It is written to follow the [Plugin Submission](https://docs.equicord.org/plugin-submission) rules so it would not be rejected for a technical violation. It is **not** an official Equicord plugin and is **not** opened as a PR against Equicord.
+
+Official inclusion is a **process**, not a folder rename. Equicord requires: join [their Discord](https://equicord.org/discord), check existing PRs and the [plugin requests tracker](https://discord.com/channels/1173279886065029291/1419347113745059961), open a request, **wait for feedback**, then send a PR to Equicord’s `dev` branch (never `main`) from a branch like `feature/ai-plugin`. Skipping that can get a technically valid plugin rejected. Contributions must follow their [Code of Conduct](https://docs.equicord.org/CODE_OF_CONDUCT).
+
+If Equicord ever accepted it, the copy inside Equicord would live in `src/equicordplugins/aiPlugin/`, use `authors: [EquicordDevs.YourName]`, and drop the userplugin self-updater (Equicord already updates official plugins). This GitHub repo would still be the userplugin.
+
+| # | Rule | This plugin |
+| --- | --- | --- |
+| 1 | No simple slash-command plugins (e.g. `/cat`) | Not a slash-only plugin. `/ai` opens the same React chat as the chat-bar / header buttons. `/aiupdate` is extra, not the product. |
+| 2 | No simple text replacement | No text replace. |
+| 3 | No raw DOM — patches and React | UI is React (`Modal`, `ChatBarButton`, `HeaderBarButton`, context menus, popovers). CSS is scoped to `vc-grokai-*`. No `document.querySelector` on Discord’s tree. |
+| 4 | No FakeDeafen / FakeMute | None. |
+| 5 | No StereoMic | None. |
+| 6 | Not only hide / restyle UI | Adds chat, explain, and fact-check. |
+| 7 | No third-party Discord bots | Does not talk to other bots. |
+| 8 | No selfbots or API abuse | Does not send messages as you. `/ai` uses Vencord `sendBotMessage` (local Clyde-style notice). Channel context reads history the client can already see (`MessageStore` + the same `GET /channels/:id/messages` Discord uses when you scroll up). |
+| 9 | No untrusted third-party APIs (Google / GitHub ok) | Talks to the **local** official [Grok](https://x.ai/cli) or Codex CLI already signed in on the machine. GitHub is only used to update this userplugin. No random HTTP APIs from the renderer. |
+| 10 | No user-supplied API keys | No key field. Login is `grok login` / `codex login` on the user’s PC. Tokens stay in `~/.grok` / `~/.codex` and are never copied into Discord’s renderer. |
+| 11 | No new npm dependencies | No extra packages. Equicord APIs only: Chat Input Button, Message Popover, Commands, Header Bar. |
 
 ---
 
