@@ -16,6 +16,13 @@ export const settings = definePluginSettings({
             { label: "Codex (OpenAI / ChatGPT)", value: "codex" },
         ],
     },
+    iconSvg: {
+        type: OptionType.STRING,
+        multiline: true,
+        description: "Custom AI icon (SVG). Leave empty for the default sparkle. Paste a full <svg>…</svg> or a <path>. Color follows Discord via currentColor.",
+        default: "",
+        placeholder: '<svg viewBox="0 0 24 24"><path d="M12 2 15 9 22 12 15 15 12 22 9 15 2 12 9 9Z"/></svg>',
+    },
     language: {
         type: OptionType.SELECT,
         description: "UI and reply language",
