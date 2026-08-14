@@ -136,7 +136,7 @@ The plugin can also update itself on Discord startup (`autoUpdate`). Manual opti
 | Setting | Description |
 | --- | --- |
 | Provider | Grok (xAI) or Codex (OpenAI / ChatGPT) |
-| Custom AI icon | Paste any SVG. Empty = default sparkle |
+| AI icon | Sparkle, Grok, OpenAI, ChatGPT, Codex, Orbit, or custom SVG |
 | Language | English, Magyar, Deutsch, Español |
 | Grok / Codex model | Shown only for the active provider |
 | Allow web search | Grok only |
@@ -144,9 +144,11 @@ The plugin can also update itself on Discord startup (`autoUpdate`). Manual opti
 | Grok / Codex path | Optional override if auto-detect fails |
 | Auto update | Pull from GitHub when Discord starts |
 
-### Custom icon
+### Icon
 
-In **Custom AI icon**, paste either a full document:
+**AI icon** has six built-in marks: Sparkle, Grok / xAI, OpenAI, ChatGPT, Codex / terminal, and Orbit.
+
+**Custom SVG** shows an extra field. Paste either a full document:
 
 ```svg
 <svg viewBox="0 0 24 24">
