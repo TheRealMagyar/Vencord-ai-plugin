@@ -70,7 +70,7 @@ async function runPluginUpdate(language: string) {
 }
 
 function SettingsAbout() {
-    const { language, grokPath } = settings.use(["language", "grokPath"]);
+    const { language, grokPath, provider, codexPath } = settings.use(["language", "grokPath", "provider", "codexPath"]);
     const [status, setStatus] = useState<GrokStatus | null>(null);
     const [update, setUpdate] = useState<UpdateStatus | null>(null);
     const [busy, setBusy] = useState(false);
@@ -91,7 +91,7 @@ function SettingsAbout() {
             });
             return;
         }
-        Native.getStatus(grokPath || undefined).then(setStatus).catch(error => {
+        Native.getStatus(provider === "codex" ? "codex" : "grok", ((provider === "codex" ? codexPath : grokPath) || undefined)).then(setStatus).catch(error => {
             setStatus({
                 installed: false,
                 authenticated: false,
@@ -105,13 +105,13 @@ function SettingsAbout() {
             });
         });
         Native.checkForUpdate().then(setUpdate).catch(() => { /* ignore */ });
-    }, [grokPath]);
+    }, [grokPath, provider, codexPath]);
 
     return (
         <div className={cl("settings")}>
             <strong>{status?.authenticated
-                ? t("Grok CLI csatlakoztatva", "Grok CLI connected", language)
-                : t("Grok CLI státusz", "Grok CLI status", language)}</strong>
+                ? t(`${provider === "codex" ? "Codex" : "Grok"} CLI csatlakoztatva`, `${provider === "codex" ? "Codex" : "Grok"} CLI connected`, language)
+                : t("AI CLI státusz", "AI CLI status", language)}</strong>
             <div>{status?.subscription || status?.error || t("Ellenőrzés…", "Checking…", language)}</div>
             {status?.displayName && <div>{t("Fiók", "Account", language)}: {status.displayName}</div>}
             {status?.version && <div>CLI: {status.version}</div>}
@@ -237,10 +237,12 @@ export default definePlugin({
                 });
                 const reply = await Native.sendChat({
                     prompt: withTranscript(question, packed, "chat"),
-                    model: settings.store.model,
+                    model: settings.store.provider === "codex" ? undefined : settings.store.model,
                     language: settings.store.language as "auto" | "hu" | "en",
                     allowWebSearch: settings.store.allowWebSearch,
                     grokPath: settings.store.grokPath || undefined,
+                    provider: settings.store.provider === "codex" ? "codex" : "grok",
+                    codexPath: settings.store.codexPath || undefined,
                 });
 
                 const text = reply.ok ? reply.text : (reply.error || "Grok error");

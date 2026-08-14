@@ -8,6 +8,14 @@ import { definePluginSettings } from "@api/Settings";
 import { OptionType } from "@utils/types";
 
 export const settings = definePluginSettings({
+    provider: {
+        type: OptionType.SELECT,
+        description: "Melyik AI-t használd (helyi CLI előfizetés)",
+        options: [
+            { label: "Grok (xAI)", value: "grok", default: true },
+            { label: "Codex (OpenAI / ChatGPT)", value: "codex" },
+        ],
+    },
     language: {
         type: OptionType.SELECT,
         description: "UI and Grok reply language / felület és válasz nyelve",
@@ -40,6 +48,12 @@ export const settings = definePluginSettings({
         description: "Optional custom path to grok.exe / grok (leave empty to auto-detect)",
         default: "",
         placeholder: String.raw`C:\Users\You\.grok\bin\grok.exe`,
+    },
+    codexPath: {
+        type: OptionType.STRING,
+        description: "Optional custom path to codex.exe (leave empty to auto-detect)",
+        default: "",
+        placeholder: String.raw`C:\Users\You\AppData\Local\OpenAI\Codex\bin\...\codex.exe`,
     },
     autoUpdate: {
         type: OptionType.BOOLEAN,

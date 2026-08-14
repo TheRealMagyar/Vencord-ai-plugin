@@ -4,6 +4,46 @@
     gap: 12px;
     min-height: 460px;
     max-height: min(72vh, 680px);
+    overflow: hidden;
+}
+
+.vc-grokai-root,
+.vc-grokai-messages,
+.vc-grokai-input {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--interactive-normal, #b5bac1) 55%, transparent) transparent;
+}
+
+.vc-grokai-root::-webkit-scrollbar,
+.vc-grokai-messages::-webkit-scrollbar,
+.vc-grokai-input::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.vc-grokai-root::-webkit-scrollbar-track,
+.vc-grokai-messages::-webkit-scrollbar-track,
+.vc-grokai-input::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.vc-grokai-root::-webkit-scrollbar-thumb,
+.vc-grokai-messages::-webkit-scrollbar-thumb,
+.vc-grokai-input::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--interactive-normal, #b5bac1) 45%, transparent);
+    border-radius: 99px;
+}
+
+.vc-grokai-root::-webkit-scrollbar-thumb:hover,
+.vc-grokai-messages::-webkit-scrollbar-thumb:hover,
+.vc-grokai-input::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--interactive-hover, #dbdee1) 70%, transparent);
+}
+
+.vc-grokai-root::-webkit-scrollbar-corner,
+.vc-grokai-messages::-webkit-scrollbar-corner,
+.vc-grokai-input::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 .vc-grokai-status {
@@ -31,7 +71,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 2px 2px 0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--background-secondary);
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
 }
 
 .vc-grokai-toolbar-label {

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+export type AiProvider = "grok" | "codex";
+
 export interface GrokStatus {
     installed: boolean;
     authenticated: boolean;
@@ -30,6 +32,8 @@ export interface ChatRequest {
     language?: "auto" | "hu" | "en";
     allowWebSearch?: boolean;
     grokPath?: string;
+    provider?: AiProvider;
+    codexPath?: string;
 }
 
 export interface ExplainRequest {
@@ -53,6 +57,7 @@ export interface StoredThread {
     channelId: string;
     title: string;
     sessionId: string | null;
+    sessions?: Partial<Record<AiProvider, string | null>>;
     messages: ChatMessage[];
     updatedAt: number;
 }

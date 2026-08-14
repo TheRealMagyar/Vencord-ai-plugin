@@ -12,6 +12,7 @@ A plugin nem kér külön API kulcsot. Megkeresi a gépeden a `grok` CLI-t (`%US
 - `/grok` slash parancs, opcionális kérdéssel
 - Válasz másolása vagy beszúrása a Discord inputba
 - A Grok lekérheti a **jelenlegi Discord chat / DM üzeneteit** (pl. „foglald össze az egy hetes beszélgetésünket”), explainnél pedig a környező üzeneteket is odaadja
+- **Grok** vagy **Codex (ChatGPT Plus / OpenAI)** — a plugin settingsben váltható; mindkettő a helyi CLI előfizetésedet használja
 
 Csak **asztali Discord** vagy **Vesktop** alatt megy. A böngészős Vencordban nincs `native.ts` / CLI.
 

@@ -62,12 +62,13 @@ function resolveChannelId(options?: OpenOptions) {
 }
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
-    const { language, model, allowWebSearch, grokPath, includeChannelContext } = settings.use(["language", "model", "allowWebSearch", "grokPath", "includeChannelContext"]);
+    const { language, model, allowWebSearch, grokPath, includeChannelContext, provider, codexPath } = settings.use(["language", "model", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath"]);
     const [status, setStatus] = useState<GrokStatus | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [busy, setBusy] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const sessionsRef = useRef<Partial<Record<"grok" | "codex", string | null>>>({});
     const [channelId, setChannelId] = useState("");
     const [threadTitle, setThreadTitle] = useState("Grok");
     const scroller = useRef<HTMLDivElement>(null);
@@ -76,6 +77,8 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const Native = getNative();
 
     const lang = language as "auto" | "hu" | "en";
+    const activeProvider = (provider === "codex" ? "codex" : "grok") as "grok" | "codex";
+    const providerLabel = activeProvider === "codex" ? "Codex" : "Grok";
 
     useEffect(() => {
         scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
@@ -96,7 +99,8 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 if (stored) {
                     messagesRef.current = stored.messages;
                     setMessages(stored.messages);
-                    setSessionId(stored.sessionId);
+                    sessionsRef.current = stored.sessions ?? { grok: stored.sessionId };
+                    setSessionId(sessionsRef.current[activeProvider] ?? (activeProvider === "grok" ? stored.sessionId : null));
                 }
             }
 
@@ -111,15 +115,15 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     authMode: null,
                     expiresAt: null,
                     error: t(
-                        "Ez a plugin csak asztali Discordon / Vesktopon működik (Grok CLI kell).",
-                        "This plugin only works on desktop Discord / Vesktop (Grok CLI required).",
+                        "Ez a plugin csak asztali Discordon / Vesktopon működik (helyi Grok vagy Codex CLI kell).",
+                        "This plugin only works on desktop Discord / Vesktop (local Grok or Codex CLI required).",
                         lang,
                     ),
                 });
                 return;
             }
 
-            const next = await Native.getStatus(grokPath || undefined);
+            const next = await Native.getStatus(activeProvider, (activeProvider === "codex" ? codexPath : grokPath) || undefined);
             setStatus(next);
 
             if (!next.authenticated) return;
@@ -151,9 +155,11 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         return Native.sendChat({
                             prompt: withTranscript(userPrompt, packed, "explain"),
                             sessionId: null,
-                            model,
+                            model: activeProvider === "grok" ? model : undefined,
                             language: lang,
                             grokPath: grokPath || undefined,
+                            provider: activeProvider,
+                            codexPath: codexPath || undefined,
                         });
                     },
                     context: { channelId: id, title },
@@ -169,10 +175,12 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
 
     async function persist(nextMessages: ChatMessage[], nextSession: string | null, id = channelId, title = threadTitle) {
         if (!id) return;
+        sessionsRef.current = { ...sessionsRef.current, [activeProvider]: nextSession };
         await saveThread({
             channelId: id,
             title,
-            sessionId: nextSession,
+            sessionId: sessionsRef.current.grok ?? nextSession,
+            sessions: sessionsRef.current,
             messages: persistableMessages(nextMessages),
             updatedAt: Date.now(),
         });
@@ -193,7 +201,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         const pending: ChatMessage = {
             id: nextId(),
             role: "assistant",
-            text: t("Grok gondolkodik…", "Grok is thinking…", lang),
+            text: t(`${providerLabel} gondolkodik…`, `${providerLabel} is thinking…`, lang),
             pending: true,
         };
         const withPending = [...messagesRef.current, userMsg, pending];
@@ -254,10 +262,12 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 return Native.sendChat({
                     prompt: withTranscript(prompt, packed, "chat"),
                     sessionId,
-                    model,
+                    model: activeProvider === "grok" ? model : undefined,
                     language: lang,
                     allowWebSearch,
                     grokPath: grokPath || undefined,
+                    provider: activeProvider,
+                    codexPath: codexPath || undefined,
                 });
             },
         });
@@ -272,19 +282,20 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         }
         await clearThread(channelId);
         messagesRef.current = [];
+        sessionsRef.current = {};
         setMessages([]);
         setSessionId(null);
     }
 
     const connected = Boolean(status?.installed && status.authenticated);
-    const title = `Grok · ${threadTitle}`;
+    const title = `${providerLabel} · ${threadTitle}`;
 
     return (
         <Modal {...rootProps} size="lg" title={title} subtitle={
             <span className={cl("status")}>
                 <span className={cl("dot", { ok: connected })} />
                 {connected
-                    ? t("Csatlakozva · előzmény ehhez a chathoz", "Connected · history for this chat", lang)
+                    ? `${providerLabel} · ${status?.subscription || t("csatlakozva", "connected", lang)}`
                     : (status?.error || t("Kapcsolódás…", "Connecting…", lang))}
             </span>
         }>
@@ -305,7 +316,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             <div className={cl("empty-icon")}>
                                 <GrokIcon height={32} width={32} />
                             </div>
-                            <strong>{t("Szia! Én vagyok a Grok.", "Hi — I'm Grok.", lang)}</strong>
+                            <strong>{t(`Szia! Én vagyok a ${providerLabel}.`, `Hi — I'm ${providerLabel}.`, lang)}</strong>
                             <div>
                                 {t(
                                     `Ez a beszélgetés ehhez van kötve: ${threadTitle}. Itt látod majd az előzményt is.`,
@@ -319,7 +330,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     {messages.map(msg => (
                         <div key={msg.id} className={cl("row", msg.role)}>
                             <div className={cl("meta")}>
-                                {msg.role === "user" ? t("Te", "You", lang) : "Grok"}
+                                {msg.role === "user" ? t("Te", "You", lang) : providerLabel}
                                 {msg.at ? ` · ${formatTime(msg.at)}` : ""}
                             </div>
                             <div className={cl("bubble", msg.role, { pending: Boolean(msg.pending) })}>
@@ -350,7 +361,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         rows={2}
                         value={input}
                         disabled={busy || !connected}
-                        placeholder={t("Írj Grok-nak…  Enter küld, Shift+Enter új sor", "Message Grok…  Enter to send, Shift+Enter for a new line", lang)}
+                        placeholder={t(`Írj ${providerLabel}-nak…  Enter küld, Shift+Enter új sor`, `Message ${providerLabel}…  Enter to send, Shift+Enter for a new line`, lang)}
                         onChange={e => setInput(e.currentTarget.value)}
                         onKeyDown={e => {
                             if (e.key === "Enter" && !e.shiftKey) {
