@@ -74,10 +74,10 @@ const dict = {
         es: "No hay sesión de Codex / ChatGPT. Ejecuta: codex login",
     },
     codexEmpty: {
-        en: "The Codex CLI returned an empty reply.",
-        hu: "A Codex CLI üres választ adott.",
-        de: "Die Codex-CLI hat eine leere Antwort gegeben.",
-        es: "La CLI de Codex devolvió una respuesta vacía.",
+        en: "The Codex CLI returned an empty reply. Check `codex login` and the selected model.",
+        hu: "A Codex CLI üres választ adott. Nézd meg: `codex login` és a kiválasztott modell.",
+        de: "Die Codex-CLI hat eine leere Antwort gegeben. Prüfe `codex login` und das gewählte Modell.",
+        es: "La CLI de Codex devolvió una respuesta vacía. Revisa `codex login` y el modelo elegido.",
     },
     codexError: {
         en: "Codex error",

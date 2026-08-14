@@ -788,16 +788,35 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
     }
 }
 
+function itemText(item: Record<string, unknown>) {
+    const direct = asText(item.text) || asText(item.message) || asText(item.output_text);
+    if (direct) return direct;
+    const content = item.content;
+    if (typeof content === "string" && content.trim()) return content.trim();
+    if (!Array.isArray(content)) return undefined;
+    const parts = content.flatMap(block => {
+        if (typeof block === "string" && block.trim()) return [block.trim()];
+        if (!block || typeof block !== "object") return [];
+        const rec = block as Record<string, unknown>;
+        const text = asText(rec.text) || asText(rec.content);
+        return text ? [text] : [];
+    });
+    return parts.length ? parts.join("\n") : undefined;
+}
+
+function isAgentMessageType(kind?: string) {
+    return kind === "agent_message" || kind === "assistant_message" || kind === "message";
+}
+
 function applyCodexEvent(progress: ChatProgress, event: Record<string, unknown>) {
     const type = asText(event.type);
     if (type === "thread.started" && asText(event.thread_id))
         progress.sessionId = asText(event.thread_id);
 
     const item = event.item && typeof event.item === "object"
-        ? event.item as {
+        ? event.item as Record<string, unknown> & {
             id?: string;
             type?: string;
-            text?: string;
             query?: string;
             command?: string;
             tool?: string;
@@ -814,14 +833,18 @@ function applyCodexEvent(progress: ChatProgress, event: Record<string, unknown>)
                 detail: item.query || item.command || item.tool,
             });
         }
+        const started = itemText(item);
+        if (isAgentMessageType(kind) && started)
+            progress.text = started;
         return;
     }
 
-    if (type === "item.completed" && item) {
-        if (item.type === "reasoning" && item.text)
-            progress.thought = clipThought(progress.thought ? `${progress.thought}\n${item.text}` : item.text);
-        if (item.type === "agent_message" && item.text)
-            progress.text = item.text;
+    if ((type === "item.completed" || type === "item.updated") && item) {
+        const text = itemText(item);
+        if (item.type === "reasoning" && text)
+            progress.thought = clipThought(progress.thought ? `${progress.thought}\n${text}` : text);
+        if (isAgentMessageType(item.type) && text)
+            progress.text = text;
         if (item.type === "web_search" || item.type === "command_execution" || item.type === "mcp_tool_call") {
             upsertTool(progress, {
                 id: item.id || `tool-${progress.tools.length}`,
@@ -833,8 +856,11 @@ function applyCodexEvent(progress: ChatProgress, event: Record<string, unknown>)
         return;
     }
 
-    if (type === "error")
-        progress.error = asText(event.message) || nativeT(undefined, "codexError");
+    if (type === "error") {
+        const message = asText(event.message) || nativeT(undefined, "codexError");
+        if (!/reconnecting/i.test(message))
+            progress.error = message;
+    }
     if (type === "turn.failed") {
         const err = event.error;
         progress.error = typeof err === "string"
@@ -846,8 +872,8 @@ function applyCodexEvent(progress: ChatProgress, event: Record<string, unknown>)
     }
 }
 
-function parseCodexJsonl(stdout: string, progress: ChatProgress, language?: string): GrokReply {
-    for (const line of stdout.split(/\r?\n/)) {
+function parseCodexJsonl(raw: string, progress: ChatProgress) {
+    for (const line of raw.split(/\r?\n/)) {
         const trimmed = line.trim();
         if (!trimmed.startsWith("{")) continue;
         try {
@@ -856,18 +882,50 @@ function parseCodexJsonl(stdout: string, progress: ChatProgress, language?: stri
             // skip non-event lines
         }
     }
+}
 
-    if (progress.text.trim())
-        return { ok: true, text: progress.text.trim(), sessionId: progress.sessionId, error: null, thought: progress.thought || undefined, tools: progress.tools };
+function clipCliError(text: string) {
+    const trimmed = text.trim();
+    if (trimmed.length <= 800) return trimmed;
+    return trimmed.slice(-800);
+}
+
+function finishCodexReply(
+    progress: ChatProgress,
+    extra: { lastFile?: string; stderr?: string; code?: number | null; language?: string; },
+): GrokReply {
+    const fromFile = extra.lastFile && existsSync(extra.lastFile)
+        ? readFileSync(extra.lastFile, "utf8").trim()
+        : "";
+    const text = progress.text.trim() || fromFile;
+    if (text)
+        return { ok: true, text, sessionId: progress.sessionId, error: null, thought: progress.thought || undefined, tools: progress.tools };
     if (progress.error)
         return { ok: false, text: "", sessionId: progress.sessionId, error: progress.error, thought: progress.thought || undefined, tools: progress.tools };
-    const fallback = stdout.trim();
-    return fallback
-        ? { ok: true, text: fallback, sessionId: progress.sessionId, error: null, thought: progress.thought || undefined, tools: progress.tools }
-        : { ok: false, text: "", sessionId: progress.sessionId, error: nativeT(language, "codexEmpty"), thought: progress.thought || undefined, tools: progress.tools };
+    const stderr = clipCliError(extra.stderr || "");
+    if (extra.code && extra.code !== 0)
+        return { ok: false, text: "", sessionId: progress.sessionId, error: stderr || nativeT(extra.language, "codexExit", { code: extra.code ?? "?" }), thought: progress.thought || undefined, tools: progress.tools };
+    if (stderr)
+        return { ok: false, text: "", sessionId: progress.sessionId, error: stderr, thought: progress.thought || undefined, tools: progress.tools };
+    return { ok: false, text: "", sessionId: progress.sessionId, error: nativeT(extra.language, "codexEmpty"), thought: progress.thought || undefined, tools: progress.tools };
+}
+
+function shouldRetryCodexWithoutSession(reply: GrokReply) {
+    const err = (reply.error || "").toLowerCase();
+    return /not found|unknown session|unknown thread|no such|resume|rollout|invalid session|invalid thread/.test(err);
 }
 
 async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Promise<GrokReply> {
+    const first = await spawnCodexExec(request, progress);
+    if (first.ok || !request.sessionId || shouldRetryCodexWithoutSession(first) === false)
+        return first;
+    progress.sessionId = null;
+    progress.error = null;
+    progress.status = "running";
+    return spawnCodexExec({ ...request, sessionId: null }, progress);
+}
+
+async function spawnCodexExec(request: ChatRequest, progress: ChatProgress): Promise<GrokReply> {
     const codexPath = resolveCodexPath(request.codexPath);
     if (!codexPath) {
         return {
@@ -879,9 +937,11 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
     }
 
     const cwd = isolatedCwd();
+    const workDir = mkdtempSync(join(tmpdir(), "vencord-codex-"));
+    const lastFile = join(workDir, "last.txt");
     const args = request.sessionId
-        ? ["exec", "resume", request.sessionId, "--json", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "-C", cwd, "-"]
-        : ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "-C", cwd, "-"];
+        ? ["exec", "resume", request.sessionId, "--json", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "-C", cwd, "-o", lastFile, "-"]
+        : ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "-C", cwd, "-o", lastFile, "-"];
 
     if (request.model)
         args.splice(args.indexOf("--json"), 0, "-m", request.model);
@@ -905,75 +965,80 @@ async function runCodexPrompt(request: ChatRequest, progress: ChatProgress): Pro
 
     const prompt = `${rules}\n\n${request.prompt}`;
 
-    return new Promise(resolve => {
-        const child = spawn(codexPath, args, {
-            cwd,
-            windowsHide: true,
-            stdio: ["pipe", "pipe", "pipe"],
-            env: {
-                ...process.env,
-                RUST_LOG: "off",
-            },
-        });
-        trackProcess(progress.jobId, child);
+    try {
+        return await new Promise<GrokReply>(resolve => {
+            const child = spawn(codexPath, args, {
+                cwd,
+                windowsHide: true,
+                stdio: ["pipe", "pipe", "pipe"],
+                env: {
+                    ...process.env,
+                    HOME: process.env.HOME || homedir(),
+                    CODEX_HOME: process.env.CODEX_HOME || join(homedir(), ".codex"),
+                    RUST_LOG: "off",
+                },
+            });
+            trackProcess(progress.jobId, child);
 
-        let stdout = "";
-        let stderr = "";
-        let settled = false;
-        const timeoutMs = timeoutMsFor(request);
-        const lines = createLineParser(event => applyCodexEvent(progress, event));
-        const finish = (reply: GrokReply) => {
-            if (settled) return;
-            settled = true;
-            resolve(reply);
-        };
-        const timer = setTimeout(() => {
-            child.kill();
-            lines.flush();
-            if (progress.text.trim()) {
-                finish({
-                    ok: true,
-                    text: progress.text.trim(),
-                    sessionId: progress.sessionId,
-                    error: null,
-                    thought: progress.thought || undefined,
-                    tools: progress.tools,
-                });
+            let stdout = "";
+            let stderr = "";
+            let settled = false;
+            const timeoutMs = timeoutMsFor(request);
+            const lines = createLineParser(event => applyCodexEvent(progress, event));
+            const finish = (reply: GrokReply) => {
+                if (settled) return;
+                settled = true;
+                resolve(reply);
+            };
+            const timer = setTimeout(() => {
+                child.kill();
+                lines.flush();
+                parseCodexJsonl(`${stdout}\n${stderr}`, progress);
+                if (progress.text.trim()) {
+                    finish(finishCodexReply(progress, { lastFile, language: request.language }));
+                    return;
+                }
+                finish({ ok: false, text: "", sessionId: progress.sessionId, error: nativeT(request.language, "timedOut", { seconds: timeoutMs / 1000 }) });
+            }, timeoutMs);
+            child.stdout?.setEncoding("utf8");
+            child.stderr?.setEncoding("utf8");
+            child.stdout?.on("data", chunk => {
+                stdout += chunk;
+                lines.push(chunk);
+            });
+            child.stderr?.on("data", chunk => {
+                stderr += chunk;
+                lines.push(chunk);
+            });
+            const stdin = child.stdin;
+            if (!stdin) {
+                clearTimeout(timer);
+                child.kill();
+                finish({ ok: false, text: "", sessionId: null, error: nativeT(request.language, "codexEmpty") });
                 return;
             }
-            finish({ ok: false, text: "", sessionId: progress.sessionId, error: nativeT(request.language, "timedOut", { seconds: timeoutMs / 1000 }) });
-        }, timeoutMs);
-        child.stdout?.setEncoding("utf8");
-        child.stderr?.setEncoding("utf8");
-        child.stdout?.on("data", chunk => {
-            stdout += chunk;
-            lines.push(chunk);
-        });
-        child.stderr?.on("data", chunk => { stderr += chunk; });
-        child.stdin?.write(prompt);
-        child.stdin?.end();
-        child.on("error", error => {
-            clearTimeout(timer);
-            finish({ ok: false, text: "", sessionId: null, error: error.message });
-        });
-        child.on("close", code => {
-            clearTimeout(timer);
-            lines.flush();
-            const parsed = progress.text.trim()
-                ? {
-                    ok: true as const,
-                    text: progress.text.trim(),
-                    sessionId: progress.sessionId,
-                    error: null,
-                    thought: progress.thought || undefined,
-                    tools: progress.tools,
+            stdin.write(prompt, "utf8", error => {
+                if (error) {
+                    clearTimeout(timer);
+                    finish({ ok: false, text: "", sessionId: null, error: error.message });
+                    return;
                 }
-                : parseCodexJsonl(stdout, progress, request.language);
-            if (!parsed.ok && code && code !== 0 && !parsed.error)
-                parsed.error = stderr.trim() || nativeT(request.language, "codexExit", { code: code ?? "?" });
-            finish(parsed);
+                stdin.end();
+            });
+            child.on("error", error => {
+                clearTimeout(timer);
+                finish({ ok: false, text: "", sessionId: null, error: error.message });
+            });
+            child.on("close", code => {
+                clearTimeout(timer);
+                lines.flush();
+                parseCodexJsonl(`${stdout}\n${stderr}`, progress);
+                finish(finishCodexReply(progress, { lastFile, stderr, code, language: request.language }));
+            });
         });
-    });
+    } finally {
+        rmSync(workDir, { recursive: true, force: true });
+    }
 }
 
 export async function getChatProgress(_event: unknown, jobId: string): Promise<ChatProgress | null> {
