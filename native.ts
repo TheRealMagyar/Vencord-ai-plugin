@@ -11,7 +11,7 @@ import { homedir, tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 
-import type { ChatRequest, ExplainRequest, GrokReply, GrokStatus } from "./types";
+import type { ChatRequest, ExplainRequest, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
 
 const execFileAsync = promisify(execFile);
 const GROK_BIN = process.platform === "win32" ? "grok.exe" : "grok";
@@ -399,4 +399,174 @@ export async function openGrokFolder(_event: unknown) {
     if (!existsSync(home)) return false;
     await shell.openPath(home);
     return true;
+}
+
+function resolveGit() {
+    const candidates = [
+        join("C:", "Program Files", "Git", "cmd", "git.exe"),
+        join("C:", "Program Files", "Git", "bin", "git.exe"),
+        join(homedir(), "AppData", "Local", "Programs", "Git", "cmd", "git.exe"),
+        process.platform === "win32" ? "git.exe" : "git",
+    ];
+    return candidates.find(path => path === "git" || path === "git.exe" || existsSync(path)) ?? "git";
+}
+
+function findPluginDir() {
+    const home = homedir();
+    const candidates = [
+        join(__dirname, "..", "..", "src", "userplugins", "grokAi"),
+        join(home, "Documents", "GitHub", "Equicord", "src", "userplugins", "grokAi"),
+        join(home, "Equicord", "src", "userplugins", "grokAi"),
+        join(home, "Documents", "GitHub", "Vencord", "src", "userplugins", "grokAi"),
+        join(home, "Documents", "GitHub", "Vencord-ai-plugin"),
+    ];
+    return candidates.find(dir => existsSync(join(dir, "index.tsx")) && existsSync(join(dir, ".git"))) ?? null;
+}
+
+function findHostRoot(pluginDir: string) {
+    const root = join(pluginDir, "..", "..", "..");
+    const pkgPath = join(root, "package.json");
+    if (!existsSync(pkgPath)) return null;
+    try {
+        const name = JSON.parse(readFileSync(pkgPath, "utf8")).name;
+        if (name === "equicord" || name === "vencord") return root;
+    } catch {
+        return null;
+    }
+    return null;
+}
+
+function runShell(command: string, cwd: string, timeout: number) {
+    return new Promise<{ stdout: string; stderr: string; code: number | null; }>((resolve, reject) => {
+        const child = spawn(command, {
+            cwd,
+            shell: true,
+            windowsHide: true,
+            env: process.env,
+        });
+        let stdout = "";
+        let stderr = "";
+        const timer = setTimeout(() => {
+            child.kill();
+            reject(new Error(`Időtúllépés: ${command}`));
+        }, timeout);
+        child.stdout?.setEncoding("utf8");
+        child.stderr?.setEncoding("utf8");
+        child.stdout?.on("data", chunk => { stdout += chunk; });
+        child.stderr?.on("data", chunk => { stderr += chunk; });
+        child.on("error", error => {
+            clearTimeout(timer);
+            reject(error);
+        });
+        child.on("close", code => {
+            clearTimeout(timer);
+            resolve({ stdout, stderr, code });
+        });
+    });
+}
+
+async function git(pluginDir: string, args: string) {
+    const exe = resolveGit();
+    const quoted = `"${exe}" -C "${pluginDir}" ${args}`;
+    const { stdout, stderr, code } = await runShell(quoted, pluginDir, 90_000);
+    if (code && code !== 0) {
+        throw new Error((stderr || stdout || `git ${args} failed`).trim());
+    }
+    return stdout.trim();
+}
+
+export async function checkForUpdate(_event: unknown): Promise<UpdateStatus> {
+    const pluginDir = findPluginDir();
+    if (!pluginDir) {
+        return {
+            ok: false,
+            available: false,
+            pluginDir: null,
+            local: null,
+            remote: null,
+            error: "Nem találom a GrokAi git mappát (src/userplugins/grokAi).",
+        };
+    }
+
+    try {
+        await git(pluginDir, "fetch origin");
+        const local = await git(pluginDir, "rev-parse HEAD");
+        let remote = "";
+        try {
+            remote = await git(pluginDir, "rev-parse origin/main");
+        } catch {
+            remote = await git(pluginDir, "rev-parse @{u}");
+        }
+        return {
+            ok: true,
+            available: Boolean(local && remote && local !== remote),
+            pluginDir,
+            local: local.slice(0, 8),
+            remote: remote.slice(0, 8),
+            error: null,
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            available: false,
+            pluginDir,
+            local: null,
+            remote: null,
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
+
+export async function applyUpdate(_event: unknown): Promise<UpdateResult> {
+    const pluginDir = findPluginDir();
+    if (!pluginDir) {
+        return {
+            ok: false,
+            pulled: false,
+            built: false,
+            needsRestart: false,
+            pluginDir: null,
+            error: "Nem találom a GrokAi git mappát.",
+        };
+    }
+
+    try {
+        try {
+            await git(pluginDir, "pull --ff-only origin main");
+        } catch {
+            await git(pluginDir, "pull --ff-only");
+        }
+
+        const host = findHostRoot(pluginDir);
+        let built = false;
+        if (host) {
+            const bun = join(homedir(), ".bun", "bin", process.platform === "win32" ? "bun.exe" : "bun");
+            const buildCmd = existsSync(bun)
+                ? `"${bun}" run build`
+                : "corepack pnpm@11.20.0 run build";
+            const result = await runShell(buildCmd, host, 300_000);
+            if (result.code && result.code !== 0) {
+                throw new Error((result.stderr || result.stdout || "build failed").trim());
+            }
+            built = true;
+        }
+
+        return {
+            ok: true,
+            pulled: true,
+            built,
+            needsRestart: true,
+            pluginDir,
+            error: built ? null : "A forrást frissítettem, de az Equicord/Vencord buildet nem találtam. Futtasd a build parancsot.",
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            pulled: false,
+            built: false,
+            needsRestart: false,
+            pluginDir,
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
 }

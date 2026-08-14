@@ -11,12 +11,12 @@ import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, 
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import definePlugin from "@utils/types";
 import { Message } from "@vencord/discord-types";
-import { ChannelStore, Menu, useEffect, useState } from "@webpack/common";
+import { ChannelStore, Menu, showToast, Toasts, useEffect, useState } from "@webpack/common";
 
 import { openGrokModal } from "./ChatModal";
 import { GrokIcon } from "./GrokIcon";
 import { settings } from "./settings";
-import type { GrokStatus } from "./types";
+import type { GrokStatus, UpdateStatus } from "./types";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
 const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat, isAnyChat }) => {
@@ -49,9 +49,30 @@ const messageCtxPatch: NavContextMenuPatchCallback = (children, { message }: { m
     ));
 };
 
+async function runPluginUpdate(language: string) {
+    const Native = getNative();
+    if (!Native) {
+        showToast(t("Csak asztali Discordon megy a frissítés.", "Updates only work on desktop Discord.", language), Toasts.Type.FAILURE);
+        return;
+    }
+
+    showToast(t("GrokAi frissítés…", "Updating GrokAi…", language), Toasts.Type.MESSAGE);
+    const result = await Native.applyUpdate();
+    if (result.ok) {
+        showToast(
+            t("GrokAi frissítve. Indítsd újra a Discordot.", "GrokAi updated. Restart Discord.", language),
+            Toasts.Type.SUCCESS,
+        );
+        return;
+    }
+    showToast(result.error || t("Frissítés sikertelen.", "Update failed.", language), Toasts.Type.FAILURE);
+}
+
 function SettingsAbout() {
     const { language, grokPath } = settings.use(["language", "grokPath"]);
     const [status, setStatus] = useState<GrokStatus | null>(null);
+    const [update, setUpdate] = useState<UpdateStatus | null>(null);
+    const [busy, setBusy] = useState(false);
 
     useEffect(() => {
         const Native = getNative();
@@ -82,6 +103,7 @@ function SettingsAbout() {
                 error: error instanceof Error ? error.message : String(error),
             });
         });
+        Native.checkForUpdate().then(setUpdate).catch(() => { /* ignore */ });
     }, [grokPath]);
 
     return (
@@ -93,6 +115,35 @@ function SettingsAbout() {
             {status?.displayName && <div>{t("Fiók", "Account", language)}: {status.displayName}</div>}
             {status?.version && <div>CLI: {status.version}</div>}
             {status?.grokPath && <div><code>{status.grokPath}</code></div>}
+
+            <strong>{t("GitHub frissítés", "GitHub update", language)}</strong>
+            <div>
+                {update == null
+                    ? t("Ellenőrzés…", "Checking…", language)
+                    : update.available
+                        ? t(`Új verzió van (${update.local} → ${update.remote})`, `Update available (${update.local} → ${update.remote})`, language)
+                        : update.ok
+                            ? t("Naprakész.", "Up to date.", language)
+                            : (update.error || t("Nem sikerült ellenőrizni.", "Could not check.", language))}
+            </div>
+            <button
+                className={cl("send")}
+                disabled={busy}
+                onClick={async () => {
+                    setBusy(true);
+                    try {
+                        await runPluginUpdate(language);
+                        const Native = getNative();
+                        if (Native) setUpdate(await Native.checkForUpdate());
+                    } finally {
+                        setBusy(false);
+                    }
+                }}
+            >
+                {busy
+                    ? t("Frissítés…", "Updating…", language)
+                    : t("Frissítés most", "Update now", language)}
+            </button>
         </div>
     );
 }
@@ -107,6 +158,23 @@ export default definePlugin({
     settings,
     settingsAboutComponent: SettingsAbout,
     requiresRestart: true,
+
+    async start() {
+        if (!settings.store.autoUpdate) return;
+        const Native = getNative();
+        if (!Native) return;
+        try {
+            const check = await Native.checkForUpdate();
+            if (!check.ok || !check.available) return;
+            await runPluginUpdate(settings.store.language);
+        } catch {
+            // ignore startup update errors
+        }
+    },
+
+    toolboxActions: {
+        "GrokAi frissítése": () => runPluginUpdate(settings.store.language),
+    },
 
     contextMenus: {
         message: messageCtxPatch,
@@ -173,6 +241,14 @@ export default definePlugin({
                 return sendBotMessage(ctx.channel.id, {
                     content: text.length > 1900 ? `${text.slice(0, 1900)}…` : text,
                 });
+            },
+        },
+        {
+            name: "grokupdate",
+            description: "Pull the latest GrokAi plugin from GitHub and rebuild",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            execute: async () => {
+                await runPluginUpdate(settings.store.language);
             },
         },
     ],

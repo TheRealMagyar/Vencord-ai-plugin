@@ -99,6 +99,22 @@ Ha az `app.asar` mappa miatt az injector továbbra sem megy, a Discord `resource
 
 Indítsd a Discordot. Settings → Plugins → **GrokAi** → Enable.
 
+### Frissítés (Command Prompt)
+
+Zárd be a Discordot, illeszd be:
+
+```bat
+cd /d "%USERPROFILE%\Documents\GitHub\Equicord" && git -C src\userplugins\grokAi pull && (bun run build || corepack pnpm@11.20.0 run build)
+```
+
+Ha a forrásod `C:\Users\User\Equicord`:
+
+```bat
+cd /d "%USERPROFILE%\Equicord" && git -C src\userplugins\grokAi pull && (bun run build || corepack pnpm@11.20.0 run build)
+```
+
+A plugin **magától is** ellenőrzi a GitHubot Discord indításkor (beállítás: *autoUpdate*). Kézzel: plugin settings → **Frissítés most**, vagy `/grokupdate`. Utána Discord restart.
+
 ## Beállítások
 
 | Beállítás | Mit csinál |

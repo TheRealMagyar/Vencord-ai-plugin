@@ -36,4 +36,9 @@ export const settings = definePluginSettings({
         default: "",
         placeholder: String.raw`C:\Users\You\.grok\bin\grok.exe`,
     },
+    autoUpdate: {
+        type: OptionType.BOOLEAN,
+        description: "Discord indításakor ellenőrizze a GitHubot, és telepítse a GrokAi frissítést (újraindítás kell utána)",
+        default: true,
+    },
 });

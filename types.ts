@@ -47,3 +47,21 @@ export interface ChatMessage {
     text: string;
     pending?: boolean;
 }
+
+export interface UpdateStatus {
+    ok: boolean;
+    available: boolean;
+    pluginDir: string | null;
+    local: string | null;
+    remote: string | null;
+    error: string | null;
+}
+
+export interface UpdateResult {
+    ok: boolean;
+    pulled: boolean;
+    built: boolean;
+    needsRestart: boolean;
+    pluginDir: string | null;
+    error: string | null;
+}
