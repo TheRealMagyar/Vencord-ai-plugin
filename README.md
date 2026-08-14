@@ -18,7 +18,7 @@ Works on **Discord Desktop** and **Vesktop**. It does not run in Vencord Web.
 | Providers | Grok CLI or Codex CLI, switched in settings |
 | Models | Provider-specific list (Grok 4.6 / 4.5, GPT-5.6 Sol–Luna, GPT-5.5 / 5.4) |
 | Language | English (default), Magyar, Deutsch, Español |
-| Icon | Built-in sparkle, or any SVG you paste in settings |
+| Icon | Default, Grok, OpenAI, Atom, or a custom SVG (`currentColor`) |
 
 ---
 
