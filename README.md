@@ -479,4 +479,6 @@ Desktop and Vesktop only.
 
 ## License
 
-GPL-3.0-or-later, as required for Vencord / Equicord plugins.
+[GPL-3.0-or-later](LICENSE). Equicord and Vencord plugins must be GPL-3.0 or later.
+
+Copyright (C) 2026 TheRealMagyar and contributors.
