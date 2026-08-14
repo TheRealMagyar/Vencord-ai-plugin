@@ -9,6 +9,7 @@ import { Message, RenderModalProps } from "@vencord/discord-types";
 import { ChannelStore, Modal, openModal, Parser, SelectedChannelStore, useEffect, useRef, useState } from "@webpack/common";
 
 import { packChannelContext, withTranscript } from "./channelContext";
+import { getCachedStatus, refreshCliStatus, subscribeCliStatus } from "./cliStatus";
 import { GrokIcon } from "./GrokIcon";
 import { clearThread, getThreadTitle, listThreads, loadThread } from "./history";
 import { cancelLiveJob, getLiveJob, interruptLiveJob, isChannelBusy, listLiveJobs, mergeLiveMessages, runLiveChat, subscribeAllJobs, subscribeLiveJob } from "./liveChat";
@@ -69,7 +70,7 @@ function resolveMessageAction(options?: OpenOptions): { kind: MessageActionKind;
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
     const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath, showThinking, factCheckDepth } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath", "showThinking", "factCheckDepth"]);
-    const [status, setStatus] = useState<GrokStatus | null>(null);
+    const [status, setStatus] = useState<GrokStatus | null>(() => getCachedStatus(provider === "codex" ? "codex" : "grok"));
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [busy, setBusy] = useState(false);
@@ -111,6 +112,15 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     }, []);
 
     useEffect(() => {
+        setStatus(getCachedStatus(activeProvider));
+        return subscribeCliStatus(() => setStatus(getCachedStatus(activeProvider)));
+    }, [activeProvider]);
+
+    useEffect(() => {
+        void refreshCliStatus(activeProvider);
+    }, [activeProvider, grokPath, codexPath]);
+
+    useEffect(() => {
         if (started.current) return;
         started.current = true;
 
@@ -130,26 +140,6 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
             }
             applyLiveView(id, storedRef.current);
             await refreshThreads();
-
-            if (!Native) {
-                setStatus({
-                    installed: false,
-                    authenticated: false,
-                    grokPath: null,
-                    version: null,
-                    displayName: null,
-                    subscription: null,
-                    authMode: null,
-                    expiresAt: null,
-                    error: t("desktopOnly"),
-                });
-                return;
-            }
-
-            const next = await Native.getStatus(activeProvider, (activeProvider === "codex" ? codexPath : grokPath) || undefined);
-            setStatus(next);
-
-            if (!next.authenticated) return;
 
             const action = resolveMessageAction(options);
             if (action && isChannelBusy(id)) {

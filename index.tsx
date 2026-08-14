@@ -18,6 +18,7 @@ import { Channel, Message } from "@vencord/discord-types";
 import { ChannelStore, Menu, SelectedChannelStore, showToast, Toasts, useEffect, useState } from "@webpack/common";
 
 import { packChannelContext, withTranscript } from "./channelContext";
+import { getCachedStatus, refreshCliStatus, startCliStatusWatch, stopCliStatusWatch, subscribeCliStatus } from "./cliStatus";
 import { openGrokModal } from "./ChatModal";
 import { FactCheckIcon, GrokIcon } from "./GrokIcon";
 import { settings } from "./settings";
@@ -142,39 +143,20 @@ async function runPluginUpdate(language: string) {
 
 function SettingsAbout() {
     const { language, grokPath, provider, codexPath } = settings.use(["language", "grokPath", "provider", "codexPath"]);
-    const [status, setStatus] = useState<GrokStatus | null>(null);
+    const activeProvider = provider === "codex" ? "codex" : "grok";
+    const [status, setStatus] = useState<GrokStatus | null>(() => getCachedStatus(activeProvider));
     const [update, setUpdate] = useState<UpdateStatus | null>(null);
     const [busy, setBusy] = useState(false);
 
     useEffect(() => {
+        setStatus(getCachedStatus(activeProvider));
+        return subscribeCliStatus(() => setStatus(getCachedStatus(activeProvider)));
+    }, [activeProvider]);
+
+    useEffect(() => {
+        void refreshCliStatus(activeProvider);
         const Native = getNative();
-        if (!Native) {
-            setStatus({
-                installed: false,
-                authenticated: false,
-                grokPath: null,
-                version: null,
-                displayName: null,
-                subscription: null,
-                authMode: null,
-                expiresAt: null,
-                error: "Desktop Discord / Vesktop required.",
-            });
-            return;
-        }
-        Native.getStatus(provider === "codex" ? "codex" : "grok", ((provider === "codex" ? codexPath : grokPath) || undefined)).then(setStatus).catch(error => {
-            setStatus({
-                installed: false,
-                authenticated: false,
-                grokPath: null,
-                version: null,
-                displayName: null,
-                subscription: null,
-                authMode: null,
-                expiresAt: null,
-                error: error instanceof Error ? error.message : String(error),
-            });
-        });
+        if (!Native) return;
         Native.checkForUpdate().then(setUpdate).catch(() => { /* ignore */ });
     }, [grokPath, provider, codexPath]);
 
@@ -233,6 +215,7 @@ export default definePlugin({
 
     async start() {
         addMessagePopoverButton("AI-Plugin-factcheck", factCheckPopover, FactCheckIcon);
+        startCliStatusWatch();
         if (!settings.store.autoUpdate) return;
         const Native = getNative();
         if (!Native) return;
@@ -247,6 +230,7 @@ export default definePlugin({
 
     stop() {
         removeMessagePopoverButton("AI-Plugin-factcheck");
+        stopCliStatusWatch();
     },
 
     toolboxActions: {

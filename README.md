@@ -218,6 +218,8 @@ Older clones may still live in `src\userplugins\grokAi`. The updater looks for b
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Update the plugin | `/aiupdate` |
 
+The plugin connects to the Grok / Codex CLI in the background when Discord starts, so opening the AI window does not wait on a fresh handshake.
+
 The chat window keeps history **per Discord channel or DM**. Clearing history in the modal only clears that thread. Closing the window does not stop a running reply — reopen it to see thinking and tool progress. **Stop** interrupts the current run. The left sidebar lists channels / DMs that already have AI history.
 
 Turn on **Show thinking** (settings or the toolbar toggle) to watch Grok / Codex reason and use tools such as web search while they work. The final answer stays separate from that trace.
