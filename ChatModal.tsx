@@ -484,7 +484,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     {messages.map(msg => {
                         const tools = showThinking ? (msg.tools ?? []) : [];
                         const thought = showThinking ? (msg.thought ?? "") : "";
-                        const showTrace = msg.role === "assistant" && (thought.trim() || tools.length);
+                        const showTrace = msg.role === "assistant" && (thought.trim().length > 0 || tools.length > 0);
                         const answer = msg.pending && !msg.text.trim()
                             ? t("thinking", { provider: providerLabel })
                             : msg.text;
