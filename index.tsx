@@ -205,7 +205,7 @@ function SettingsAbout() {
 export default definePlugin({
     name: "AI-Plugin",
     description: "Chat with your local Grok or Codex CLI from Discord. Explain and fact-check messages.",
-    authors: [{ name: "TheRealMagyar", id: 0n }],
+    authors: [{ name: "TheRealMagyar", id: 462651633709613056n }],
     searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck"],
     tags: ["Chat", "Utility"],
     dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI"],
