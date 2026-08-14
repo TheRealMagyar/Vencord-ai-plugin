@@ -387,20 +387,11 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         : (status?.error || t("connecting"))}
                 </span>
             }
-            listProps={{ className: cl("modal-scroller"), style: { overflow: "hidden" } }}
         >
             <div
                 className={cl("root")}
                 onWheel={e => {
                     e.stopPropagation();
-                    const box = scroller.current;
-                    if (box && box.contains(e.target as Node)) {
-                        const atTop = box.scrollTop <= 0 && e.deltaY < 0;
-                        const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight <= 1 && e.deltaY > 0;
-                        if (atTop || atBottom) e.preventDefault();
-                        return;
-                    }
-                    e.preventDefault();
                 }}
             >
                 <div className={cl("toolbar")}>

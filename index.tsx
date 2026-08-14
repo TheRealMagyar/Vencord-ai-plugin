@@ -7,11 +7,12 @@
 import "./styles.css";
 
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
-import { ChannelToolbarButton } from "@api/HeaderBar";
+import { HeaderBarButton } from "@api/HeaderBar";
 import { addMessagePopoverButton, removeMessagePopoverButton } from "@api/MessagePopover";
 import { migratePluginSetting, migratePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
+import ErrorBoundary from "@components/ErrorBoundary";
 import definePlugin from "@utils/types";
 import { Channel, Message } from "@vencord/discord-types";
 import { ChannelStore, Menu, SelectedChannelStore, showToast, Toasts, useEffect, useState } from "@webpack/common";
@@ -41,17 +42,22 @@ const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat, isAnyChat, channe
     );
 };
 
-function ChannelHeaderAiButton() {
+function ToolbarGrokIcon({ width, height, size, className }: { width?: number; height?: number; size?: number | string; className?: string; }) {
+    const dim = typeof size === "number" ? size : (width ?? height ?? 20);
+    return <GrokIcon width={dim} height={dim} className={className} />;
+}
+
+const ChannelHeaderAiButton = ErrorBoundary.wrap(function ChannelHeaderAiButton() {
     settings.use(["iconSvg", "iconPreset"]);
     return (
-        <ChannelToolbarButton
-            icon={GrokIcon}
+        <HeaderBarButton
+            icon={ToolbarGrokIcon}
             tooltip="AI"
-            aria-label="AI"
-            onClick={() => openGrokModal({ channelId: SelectedChannelStore.getChannelId() })}
+            iconSize={20}
+            onClick={() => openGrokModal({ channelId: SelectedChannelStore.getChannelId() || undefined })}
         />
     );
-}
+}, { noop: true });
 
 function channelIdFromMenu(props: { channel?: Channel; channelId?: string; }) {
     return props.channel?.id || props.channelId || "";
@@ -61,16 +67,23 @@ const channelCtxPatch: NavContextMenuPatchCallback = (children, props: { channel
     const channelId = channelIdFromMenu(props);
     if (!channelId) return;
 
-    children.push(
-        <Menu.MenuGroup>
-            <Menu.MenuItem
-                id="vc-grokai-open"
-                label={t("openAi")}
-                icon={GrokIcon}
-                action={() => openGrokModal({ channelId })}
-            />
-        </Menu.MenuGroup>
+    const item = (
+        <Menu.MenuItem
+            id="vc-grokai-open"
+            label={t("openAi")}
+            icon={GrokIcon}
+            action={() => openGrokModal({ channelId })}
+        />
     );
+
+    const group = findGroupChildrenByChildId("mark-channel-read", children)
+        ?? findGroupChildrenByChildId("copy-channel-link", children)
+        ?? findGroupChildrenByChildId("copy-link", children);
+    if (group) {
+        group.push(item);
+        return;
+    }
+    children.push(<Menu.MenuGroup>{item}</Menu.MenuGroup>);
 };
 
 const messageCtxPatch: NavContextMenuPatchCallback = (children, { message }: { message: Message; }) => {
