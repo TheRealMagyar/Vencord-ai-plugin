@@ -6,9 +6,10 @@
 
 import { copyWithToast, insertTextIntoChatInputBox } from "@utils/discord";
 import { Message, RenderModalProps } from "@vencord/discord-types";
-import { ChannelStore, Modal, openModal, Parser, useEffect, useRef, useState } from "@webpack/common";
+import { ChannelStore, Modal, openModal, Parser, SelectedChannelStore, useEffect, useRef, useState } from "@webpack/common";
 
 import { GrokIcon } from "./GrokIcon";
+import { clearThread, getThreadTitle, loadThread, persistableMessages, saveThread } from "./history";
 import { settings } from "./settings";
 import type { ChatMessage, GrokStatus } from "./types";
 import { cl, getMessageContent, getNative, t } from "./utils";
@@ -16,6 +17,7 @@ import { cl, getMessageContent, getNative, t } from "./utils";
 interface OpenOptions {
     seedPrompt?: string;
     explainMessage?: Message;
+    channelId?: string;
 }
 
 function nextId() {
@@ -42,6 +44,22 @@ function renderMarkdown(text: string) {
     }
 }
 
+function formatTime(at?: number) {
+    if (!at) return "";
+    try {
+        return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+        return "";
+    }
+}
+
+function resolveChannelId(options?: OpenOptions) {
+    return options?.channelId
+        || options?.explainMessage?.channel_id
+        || SelectedChannelStore.getChannelId()
+        || "";
+}
+
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
     const { language, model, allowWebSearch, grokPath } = settings.use(["language", "model", "allowWebSearch", "grokPath"]);
     const [status, setStatus] = useState<GrokStatus | null>(null);
@@ -49,14 +67,17 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const [input, setInput] = useState("");
     const [busy, setBusy] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [channelId, setChannelId] = useState("");
+    const [threadTitle, setThreadTitle] = useState("Grok");
     const scroller = useRef<HTMLDivElement>(null);
     const started = useRef(false);
+    const messagesRef = useRef<ChatMessage[]>([]);
     const Native = getNative();
 
     const lang = language as "auto" | "hu" | "en";
 
     useEffect(() => {
-        scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
+        scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
     }, [messages, busy]);
 
     useEffect(() => {
@@ -64,6 +85,20 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         started.current = true;
 
         (async () => {
+            const id = resolveChannelId(options);
+            const title = getThreadTitle(id);
+            setChannelId(id);
+            setThreadTitle(title);
+
+            if (id) {
+                const stored = await loadThread(id);
+                if (stored) {
+                    messagesRef.current = stored.messages;
+                    setMessages(stored.messages);
+                    setSessionId(stored.sessionId);
+                }
+            }
+
             if (!Native) {
                 setStatus({
                     installed: false,
@@ -107,6 +142,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         model,
                         grokPath: grokPath || undefined,
                     }),
+                    context: { channelId: id, title },
                 });
                 return;
             }
@@ -117,46 +153,71 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         })();
     }, []);
 
+    async function persist(nextMessages: ChatMessage[], nextSession: string | null, id = channelId, title = threadTitle) {
+        if (!id) return;
+        await saveThread({
+            channelId: id,
+            title,
+            sessionId: nextSession,
+            messages: persistableMessages(nextMessages),
+            updatedAt: Date.now(),
+        });
+    }
+
     async function ask(opts: {
         kind: "chat" | "explain";
         visible: string;
         request: () => Promise<{ ok: boolean; text: string; sessionId: string | null; error: string | null; }>;
+        context?: { channelId: string; title: string; };
     }) {
         if (busy) return;
         setBusy(true);
 
-        const userMsg: ChatMessage = { id: nextId(), role: "user", text: opts.visible };
+        const ctxId = opts.context?.channelId || channelId;
+        const ctxTitle = opts.context?.title || threadTitle;
+        const userMsg: ChatMessage = { id: nextId(), role: "user", text: opts.visible, at: Date.now() };
         const pending: ChatMessage = {
             id: nextId(),
             role: "assistant",
             text: t("Grok gondolkodik…", "Grok is thinking…", lang),
             pending: true,
         };
-        setMessages(prev => [...prev, userMsg, pending]);
+        const withPending = [...messagesRef.current, userMsg, pending];
+        messagesRef.current = withPending;
+        setMessages(withPending);
 
         try {
             const reply = await opts.request();
+            const nextSession = reply.sessionId || sessionId;
             if (reply.sessionId) setSessionId(reply.sessionId);
 
-            setMessages(prev => prev.map(msg => msg.id === pending.id
+            const done = withPending.map(msg => msg.id === pending.id
                 ? {
                     ...msg,
                     pending: false,
+                    at: Date.now(),
                     text: reply.ok
                         ? unwrapReplyText(reply.text)
                         : (reply.error || t("Ismeretlen Grok hiba.", "Unknown Grok error.", lang)),
                 }
                 : msg
-            ));
+            );
+            messagesRef.current = done;
+            setMessages(done);
+            await persist(done, nextSession, ctxId, ctxTitle);
         } catch (error) {
-            setMessages(prev => prev.map(msg => msg.id === pending.id
+            const done = withPending.map(msg => msg.id === pending.id
                 ? {
                     ...msg,
                     pending: false,
+                    at: Date.now(),
                     text: error instanceof Error ? error.message : String(error),
                 }
                 : msg
-            ));
+            );
+            messagesRef.current = done;
+            setMessages(done);
+            await persist(done, sessionId, ctxId, ctxTitle);
         } finally {
             setBusy(false);
         }
@@ -181,19 +242,42 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         });
     }
 
+    async function onClear() {
+        if (!channelId) {
+            messagesRef.current = [];
+            setMessages([]);
+            setSessionId(null);
+            return;
+        }
+        await clearThread(channelId);
+        messagesRef.current = [];
+        setMessages([]);
+        setSessionId(null);
+    }
+
     const connected = Boolean(status?.installed && status.authenticated);
-    const title = status?.displayName ? `Grok · ${status.displayName}` : "Grok";
+    const title = `Grok · ${threadTitle}`;
 
     return (
         <Modal {...rootProps} size="lg" title={title} subtitle={
             <span className={cl("status")}>
                 <span className={cl("dot", { ok: connected })} />
                 {connected
-                    ? t("Csatlakozva a Grok CLI-hez", "Connected to Grok CLI", lang)
+                    ? t("Csatlakozva · előzmény ehhez a chathoz", "Connected · history for this chat", lang)
                     : (status?.error || t("Kapcsolódás…", "Connecting…", lang))}
             </span>
         }>
             <div className={cl("root")}>
+                <div className={cl("toolbar")}>
+                    <span className={cl("toolbar-label")}>
+                        {t("Előzmény:", "History:", lang)} {threadTitle}
+                        {messages.length ? ` · ${messages.filter(m => !m.pending).length}` : ""}
+                    </span>
+                    <button className={cl("mini")} disabled={!messages.length} onClick={onClear}>
+                        {t("Előzmény törlése", "Clear history", lang)}
+                    </button>
+                </div>
+
                 <div className={cl("messages")} ref={scroller}>
                     {messages.length === 0 && (
                         <div className={cl("empty")}>
@@ -203,8 +287,8 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             <strong>{t("Szia! Én vagyok a Grok.", "Hi — I'm Grok.", lang)}</strong>
                             <div>
                                 {t(
-                                    "Írj ide, és a helyi Grok előfizetéseddel válaszolok.",
-                                    "Type below and I'll answer with your local Grok subscription.",
+                                    `Ez a beszélgetés ehhez van kötve: ${threadTitle}. Itt látod majd az előzményt is.`,
+                                    `This conversation is tied to ${threadTitle}. History will show up here.`,
                                     lang,
                                 )}
                             </div>
@@ -214,9 +298,8 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     {messages.map(msg => (
                         <div key={msg.id} className={cl("row", msg.role)}>
                             <div className={cl("meta")}>
-                                {msg.role === "user"
-                                    ? t("Te", "You", lang)
-                                    : "Grok"}
+                                {msg.role === "user" ? t("Te", "You", lang) : "Grok"}
+                                {msg.at ? ` · ${formatTime(msg.at)}` : ""}
                             </div>
                             <div className={cl("bubble", msg.role, { pending: Boolean(msg.pending) })}>
                                 {msg.role === "assistant" && !msg.pending

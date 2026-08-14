@@ -19,13 +19,13 @@ import { settings } from "./settings";
 import type { GrokStatus, UpdateStatus } from "./types";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
-const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat, isAnyChat }) => {
+const GrokChatBarButton: ChatBarButtonFactory = ({ isMainChat, isAnyChat, channel }) => {
     if (isMainChat === false && isAnyChat === false) return null;
 
     return (
         <ChatBarButton
             tooltip="Grok"
-            onClick={() => openGrokModal()}
+            onClick={() => openGrokModal({ channelId: channel?.id })}
             buttonProps={{ "aria-haspopup": "dialog" }}
         >
             <GrokIcon className={cl("icon", "chat-button")} />
@@ -44,7 +44,7 @@ const messageCtxPatch: NavContextMenuPatchCallback = (children, { message }: { m
             id="vc-grokai-explain"
             label={t("Magyarázat Grokkal", "Explain with Grok", settings.store.language)}
             icon={GrokIcon}
-            action={() => openGrokModal({ explainMessage: message })}
+            action={() => openGrokModal({ explainMessage: message, channelId: message.channel_id })}
         />
     ));
 };
@@ -196,7 +196,7 @@ export default definePlugin({
                 icon: GrokIcon,
                 message,
                 channel: ChannelStore.getChannel(message.channel_id),
-                onClick: () => openGrokModal({ explainMessage: message }),
+                onClick: () => openGrokModal({ explainMessage: message, channelId: message.channel_id }),
             };
         },
     },

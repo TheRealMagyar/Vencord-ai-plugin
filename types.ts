@@ -46,6 +46,15 @@ export interface ChatMessage {
     role: "user" | "assistant" | "system";
     text: string;
     pending?: boolean;
+    at?: number;
+}
+
+export interface StoredThread {
+    channelId: string;
+    title: string;
+    sessionId: string | null;
+    messages: ChatMessage[];
+    updatedAt: number;
 }
 
 export interface UpdateStatus {
