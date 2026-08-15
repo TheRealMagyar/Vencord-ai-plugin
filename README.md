@@ -51,7 +51,7 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 | 3 | No raw DOM — patches and React | UI is React (`Modal`, `ChatBarButton`, `HeaderBarButton`, context menus, popovers). CSS is scoped to `vc-grokai-*`. No `document.querySelector` on Discord’s tree. |
 | 4 | No FakeDeafen / FakeMute | None. |
 | 5 | No StereoMic | None. |
-| 6 | Not only hide / restyle UI | Adds chat, explain, and fact-check. |
+| 6 | Not only hide / restyle UI | Adds chat, explain, fact-check, draft reply, channel summarize, and a mention briefing. |
 | 7 | No third-party Discord bots | Does not talk to other bots. |
 | 8 | No selfbots or API abuse | Does not send messages as you. `/ai` uses Vencord `sendBotMessage` (local Clyde-style notice). Channel context reads history the client can already see (`MessageStore` + the same `GET /channels/:id/messages` Discord uses when you scroll up). |
 | 9 | No untrusted third-party APIs (Google / GitHub ok) | Talks to the **local** official [Grok](https://x.ai/cli) or Codex CLI already signed in on the machine. GitHub is only used to update this userplugin. No random HTTP APIs from the renderer. |
@@ -90,6 +90,8 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 
 ## Screenshots
 
+Put new PNGs in [`docs/screenshots/`](docs/screenshots/README.md). Same size as the existing shots (Discord UI, dark theme, no personal tokens).
+
 ### Chat bar
 
 AI button next to GIF / sticker / Nitro.
@@ -113,6 +115,22 @@ Message hover and context menu.
 Provider, model, language, icon, fact-check depth, paths, updates.
 
 ![Plugin settings](docs/screenshots/settings.png)
+
+### Server list (add `server-list.png`)
+
+Bell under **Direct Messages** — AI notification center.
+
+### Draft a reply (add `draft-reply.png`)
+
+Hover reply arrow or right-click → **Draft a reply**, then **Insert into chat**.
+
+### Channel summarize (add `summarize.png`)
+
+Right-click a channel / thread / DM → **Summarize with AI** (last hour / today / this week).
+
+### AI notifications (add `notifications.png`)
+
+Notification center: briefing, jump links, **Clear all**.
 
 ---
 
@@ -379,7 +397,8 @@ The plugin connects to the Grok / Codex CLI **in the background when Discord sta
 | Stop | Kills the local CLI process. Any text already streamed is kept; otherwise the chat shows **Stopped.** |
 | Background | Closing the window does **not** stop a running reply. Reopen the same channel to see thinking / tools / the answer. |
 | Notifications | If a reply finishes while the window is closed, Discord shows a toast. The Vencord notification reopens that chat. |
-| Copy / Insert | On finished assistant messages: copy, or insert into the Discord input box. |
+| Copy / Insert | On finished assistant messages: copy, or insert into the Discord input box. Draft reply is meant to be inserted, never sent as you. |
+| Summarize | Toolbar **Summarize with AI** covers today in the open channel / DM. |
 
 ---
 
@@ -412,8 +431,9 @@ If **Include channel context** is on, nearby messages are attached (the target i
 | Allow web search | Grok only, for **normal chat** (fact-check has its own search) |
 | Show thinking | Live thinking + tool use (Grok and Codex) |
 | Fact-check depth | Quick, Balanced (default), or Deep |
-| Include channel context | Attach Discord history for summaries, explain, and fact-check |
+| Include channel context | Attach Discord history for summaries, explain, fact-check, and draft reply |
 | Grok / Codex path | Optional override if auto-detect fails |
+| Show notification center | Bell next to Direct Messages (restart required) |
 | Auto update | Pull from GitHub when Discord starts |
 
 ### Icon
