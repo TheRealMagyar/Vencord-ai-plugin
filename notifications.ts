@@ -5,7 +5,7 @@
  */
 
 import { Channel } from "@vencord/discord-types";
-import { ChannelStore, FluxDispatcher, GuildChannelStore, GuildStore, MessageStore, ReadStateStore } from "@webpack/common";
+import { ChannelStore, FluxDispatcher, GuildStore, MessageStore, ReadStateStore } from "@webpack/common";
 
 import { getMessageContent } from "./utils";
 
@@ -43,69 +43,72 @@ function previewFromStore(channelId: string) {
     return "";
 }
 
-function candidateChannelIds() {
-    const ids = new Set<string>();
+function mentionChannelIds() {
     try {
-        for (const id of ReadStateStore.getMentionChannelIds() ?? [])
-            ids.add(id);
+        return [...(ReadStateStore.getMentionChannelIds() ?? [])];
     } catch {
-        // ignore
+        return [];
     }
-    try {
-        for (const guild of Object.values(GuildStore.getGuilds())) {
-            const groups = GuildChannelStore.getChannels(guild.id);
-            for (const group of [groups?.SELECTABLE, groups?.VOCAL].filter(Boolean)) {
-                for (const entry of group as { channel: { id: string; }; }[])
-                    ids.add(entry.channel.id);
-            }
-        }
-    } catch {
-        // ignore
-    }
-    try {
-        for (const channel of Object.values(ChannelStore.getMutablePrivateChannels()))
-            ids.add(channel.id);
-    } catch {
-        // ignore
-    }
-    return [...ids];
 }
 
 export function collectPings(): PingItem[] {
-    const items: PingItem[] = [];
-    for (const channelId of candidateChannelIds()) {
-        let mentionCount = 0;
-        try {
-            mentionCount = ReadStateStore.getMentionCount(channelId) || 0;
-        } catch {
-            continue;
+    try {
+        const items: PingItem[] = [];
+        for (const channelId of mentionChannelIds()) {
+            let mentionCount = 0;
+            try {
+                mentionCount = ReadStateStore.getMentionCount(channelId) || 0;
+            } catch {
+                continue;
+            }
+            if (mentionCount <= 0) continue;
+
+            const channel = ChannelStore.getChannel(channelId);
+            if (!channel) continue;
+
+            const rawGuild = channel.guild_id || channel.getGuildId?.() || "";
+            const guildId = rawGuild && rawGuild !== "@me" ? rawGuild : null;
+            const guild = guildId ? GuildStore.getGuild(guildId) : null;
+            let lastMessageId: string | null = null;
+            let timestamp = Date.now();
+            try {
+                lastMessageId = ReadStateStore.lastMessageId(channelId);
+                timestamp = ReadStateStore.lastMessageTimestamp(channelId) || Date.now();
+            } catch {
+                // ignore
+            }
+            items.push({
+                channelId,
+                guildId,
+                guildName: guild?.name || "",
+                channelName: channelNameOf(channel),
+                mentionCount,
+                preview: previewFromStore(channelId),
+                lastMessageId,
+                timestamp,
+                isDm: !guildId,
+            });
         }
-        if (mentionCount <= 0) continue;
-
-        const channel = ChannelStore.getChannel(channelId);
-        if (!channel) continue;
-
-        const rawGuild = channel.guild_id || channel.getGuildId?.() || "";
-        const guildId = rawGuild && rawGuild !== "@me" ? rawGuild : null;
-        const guild = guildId ? GuildStore.getGuild(guildId) : null;
-        const lastMessageId = ReadStateStore.lastMessageId(channelId);
-        items.push({
-            channelId,
-            guildId,
-            guildName: guild?.name || "",
-            channelName: channelNameOf(channel),
-            mentionCount,
-            preview: previewFromStore(channelId),
-            lastMessageId,
-            timestamp: ReadStateStore.lastMessageTimestamp(channelId) || Date.now(),
-            isDm: !guildId,
-        });
+        return items.sort((a, b) => b.timestamp - a.timestamp);
+    } catch {
+        return [];
     }
-    return items.sort((a, b) => b.timestamp - a.timestamp);
 }
 
-export function totalMentionCount(items = collectPings()) {
-    return items.reduce((sum, item) => sum + item.mentionCount, 0);
+export function totalMentionCount() {
+    try {
+        let total = 0;
+        for (const channelId of mentionChannelIds()) {
+            try {
+                total += ReadStateStore.getMentionCount(channelId) || 0;
+            } catch {
+                // ignore
+            }
+        }
+        return total;
+    } catch {
+        return 0;
+    }
 }
 
 export function ackChannels(channelIds: string[]) {

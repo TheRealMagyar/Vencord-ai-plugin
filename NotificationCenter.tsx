@@ -21,8 +21,12 @@ function renderMarkdown(text: string) {
     }
 }
 
-function jumpTo(item: PingItem, onClose: () => void) {
-    onClose();
+function jumpTo(item: PingItem, onClose?: () => void) {
+    try {
+        onClose?.();
+    } catch {
+        // ignore
+    }
     const guild = item.guildId || "@me";
     const tail = item.lastMessageId ? `/${item.lastMessageId}` : "";
     NavigationRouter.transitionTo(`/channels/${guild}/${item.channelId}${tail}`);
@@ -36,7 +40,13 @@ function replyLanguage(lang: string) {
 }
 
 function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }) {
-    const items = useStateFromStores([ReadStateStore, ChannelStore], () => collectPings());
+    const items = useStateFromStores([ReadStateStore, ChannelStore], () => {
+        try {
+            return collectPings();
+        } catch {
+            return [];
+        }
+    });
     const [summary, setSummary] = useState(lastSummary);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
@@ -92,7 +102,7 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
     return (
         <Modal
             {...rootProps}
-            size="md"
+            size="xl"
             title={t("notifCenter")}
             subtitle={total ? t("notifCount", { count: total }) : t("notifEmpty")}
         >

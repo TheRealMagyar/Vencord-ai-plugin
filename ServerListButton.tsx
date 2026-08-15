@@ -5,7 +5,7 @@
  */
 
 import ErrorBoundary from "@components/ErrorBoundary";
-import { ChannelStore, ReadStateStore, Tooltip, useStateFromStores } from "@webpack/common";
+import { ReadStateStore, useStateFromStores } from "@webpack/common";
 
 import { openNotificationCenter } from "./NotificationCenter";
 import { totalMentionCount } from "./notifications";
@@ -22,27 +22,28 @@ function BellIcon() {
 
 function NotificationCenterButton() {
     settings.use(["language"]);
-    const count = useStateFromStores([ReadStateStore, ChannelStore], () => totalMentionCount());
+    const count = useStateFromStores([ReadStateStore], () => {
+        try {
+            return totalMentionCount();
+        } catch {
+            return 0;
+        }
+    });
 
     return (
         <div className={cl("sl")}>
-            <Tooltip text={t("notifCenter")} position="right">
-                {({ onMouseEnter, onMouseLeave }) => (
-                    <button
-                        type="button"
-                        className={cl("sl-btn")}
-                        aria-label={t("notifCenter")}
-                        onMouseEnter={onMouseEnter}
-                        onMouseLeave={onMouseLeave}
-                        onClick={() => openNotificationCenter()}
-                    >
-                        <BellIcon />
-                        {count > 0 && (
-                            <span className={cl("sl-badge")}>{count > 99 ? "99+" : count}</span>
-                        )}
-                    </button>
+            <button
+                type="button"
+                className={cl("sl-btn")}
+                aria-label={t("notifCenter")}
+                title={t("notifCenter")}
+                onClick={() => openNotificationCenter()}
+            >
+                <BellIcon />
+                {count > 0 && (
+                    <span className={cl("sl-badge")}>{count > 99 ? "99+" : count}</span>
                 )}
-            </Tooltip>
+            </button>
         </div>
     );
 }

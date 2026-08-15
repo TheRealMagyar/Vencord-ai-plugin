@@ -217,8 +217,12 @@ export default definePlugin({
 
     async start() {
         addMessagePopoverButton("AI-Plugin-factcheck", factCheckPopover, FactCheckIcon);
-        if (settings.store.showNotificationCenter)
-            addServerListElement(ServerListRenderPosition.In, renderNotificationCenterButton);
+        try {
+            if (settings.store.showNotificationCenter)
+                addServerListElement(ServerListRenderPosition.Above, renderNotificationCenterButton);
+        } catch {
+            // ServerListAPI missing or Discord UI not ready
+        }
         startCliStatusWatch();
         if (!settings.store.autoUpdate) return;
         const Native = getNative();
@@ -234,7 +238,7 @@ export default definePlugin({
 
     stop() {
         removeMessagePopoverButton("AI-Plugin-factcheck");
-        removeServerListElement(ServerListRenderPosition.In, renderNotificationCenterButton);
+        removeServerListElement(ServerListRenderPosition.Above, renderNotificationCenterButton);
         stopCliStatusWatch();
     },
 
