@@ -405,6 +405,12 @@ const dict = {
         de: "Zusammenfassen…",
         es: "Resumiendo…",
     },
+    notifReading: {
+        en: "Reading mention messages…",
+        hu: "Említések olvasása…",
+        de: "Erwähnungen werden gelesen…",
+        es: "Leyendo menciones…",
+    },
     notifSummary: {
         en: "AI summary",
         hu: "AI összefoglaló",

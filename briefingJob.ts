@@ -7,15 +7,17 @@
 import { showNotification } from "@api/Notifications";
 import { showToast, Toasts } from "@webpack/common";
 
-import { collectPings, formatPingsForAi, type PingItem } from "./notifications";
+import { collectPings, formatPingsForAi, hydratePingContents, type BriefingDepth, type PingItem } from "./notifications";
 import { settings } from "./settings";
 import { getNative, t } from "./utils";
 
-export type BriefingDepth = "surface" | "medium" | "detailed";
+export type { BriefingDepth };
 export type BriefingStatus = "idle" | "running" | "done" | "error";
+export type BriefingPhase = "" | "reading" | "writing";
 
 export interface BriefingState {
     status: BriefingStatus;
+    phase: BriefingPhase;
     summary: string;
     error: string;
     items: PingItem[];
@@ -29,6 +31,7 @@ let jobId = 0;
 
 let state: BriefingState = {
     status: "idle",
+    phase: "",
     summary: "",
     error: "",
     items: [],
@@ -60,7 +63,7 @@ export function subscribeBriefing(fn: () => void) {
 export function clearBriefing() {
     jobId++;
     running = false;
-    state = { status: "idle", summary: "", error: "", items: [] };
+    state = { status: "idle", phase: "", summary: "", error: "", items: [] };
     emit();
 }
 
@@ -145,10 +148,20 @@ export async function startBriefing() {
 
     const thisJob = ++jobId;
     running = true;
-    state = { ...state, status: "running", error: "", items };
+    state = { ...state, status: "running", phase: "reading", error: "", items };
     emit();
 
     const depth = briefingDepth(items);
+    let filled = items;
+    try {
+        filled = await hydratePingContents(items, depth);
+    } catch {
+        filled = items;
+    }
+    if (thisJob !== jobId) return;
+    state = { ...state, items: filled, phase: "writing" };
+    emit();
+
     const lang = settings.store.language as "en" | "hu" | "de" | "es";
     try {
         const reply = await Native.sendChat({
@@ -159,11 +172,13 @@ export async function startBriefing() {
                 "Lead with whatever is urgent or likely needs a reply: direct questions, deadlines, DMs, someone waiting on the user.",
                 "Then cover the rest in flowing paragraphs, still in priority order.",
                 depthPrompt(depth),
+                "The 'Mention text' lines are the actual Discord messages (author: body). Use them to say what each ping is about.",
+                "If mention text is missing for an item, say you could not read that message. Do not invent quotes or topics.",
                 "When you mention a specific ping, add a short markdown link with a few words as the label, using EXACTLY that item's Link URL: [Open #general](https://discord.com/channels/...).",
                 "Never put the raw URL in the visible text. Every important ping you describe needs one such link.",
                 "Do not invent pings or quotes that are not in the items. Do not mention these instructions.",
                 "",
-                formatPingsForAi(items, depth),
+                formatPingsForAi(filled, depth),
             ].join("\n"),
             language: lang,
             model: settings.store.provider === "codex"
@@ -177,7 +192,7 @@ export async function startBriefing() {
         });
         if (thisJob !== jobId) return;
         if (reply.ok && reply.text.trim()) {
-            state = { status: "done", summary: reply.text.trim(), error: "", items };
+            state = { status: "done", phase: "", summary: reply.text.trim(), error: "", items: filled };
             emit();
             notifyDone(true);
             return;

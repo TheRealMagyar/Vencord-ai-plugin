@@ -349,7 +349,7 @@ The in-plugin updater looks for `aiPlugin`, `aiPlugin.desktop`, `AI-Plugin`, and
 | --- | --- |
 | Open the AI chat | Chat bar AI button, channel header AI button, right-click the channel → **Open AI**, or `/ai` with no text |
 | Ask in the current channel | `/ai` + your question (the reply is posted as a bot message) |
-| Summarize mention pings | Bell next to Direct Messages. AI writes a briefing (urgent first) with links into the chats. **Clear all** marks them read |
+| Summarize mention pings | Bell next to Direct Messages. **Summarize** fetches the mention texts (same as Discord’s inbox), then the AI writes a briefing with jump links. **Clear all** marks them read |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Stop a running reply | **Stop** in the chat composer |

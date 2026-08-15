@@ -86,6 +86,7 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
     const busy = briefing.status === "running";
     const summary = briefing.summary;
     const error = briefing.error;
+    const busyLabel = briefing.phase === "reading" ? t("notifReading") : t("notifSummarizing");
 
     useEffect(() => {
         setBriefingWindowOpen(true);
@@ -122,7 +123,7 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
                         onClick={() => void startBriefing()}
                         title={!Native ? t("notifNeedCli") : undefined}
                     >
-                        {busy ? t("notifSummarizing") : t("notifSummarize")}
+                        {busy ? busyLabel : t("notifSummarize")}
                     </button>
                     <button
                         className={cl("mini")}
@@ -139,10 +140,10 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
 
                 <div className={cl("nc-summary", { error: Boolean(error && !summary), live: busy })}>
                     {busy && !summary && (
-                        <div className={cl("nc-empty")}>{t("notifSummarizing")}</div>
+                        <div className={cl("nc-empty")}>{busyLabel}</div>
                     )}
                     {busy && summary && (
-                        <div className={cl("nc-banner")}>{t("notifSummarizing")}</div>
+                        <div className={cl("nc-banner")}>{busyLabel}</div>
                     )}
                     {!busy && !summary && !error && (
                         <div className={cl("nc-empty")}>
