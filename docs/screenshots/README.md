@@ -4,16 +4,16 @@ Used on the [main README](../../README.md).
 
 Save new files here with these exact names (PNG, Discord dark theme, crop tight, no tokens / emails).
 
-| File | Shown as | Status |
-| --- | --- | --- |
-| `chat-bar.png` | Chat bar AI button | In README |
-| `chat-window.png` | AI chat window (sidebar, history, thinking) | In README |
-| `explain.png` | Explain / Fact-check with AI | In README |
-| `settings.png` | Plugin settings | In README |
-| `server-list.png` | Bell under Direct Messages | Add this file |
-| `draft-reply.png` | Draft a reply + Insert into chat | Add this file |
-| `summarize.png` | Channel / DM Summarize with AI menu | Add this file |
-| `notifications.png` | AI notification center briefing | Add this file |
+| File                | Shown as                                    | Status        |
+| ------------------- | ------------------------------------------- | ------------- |
+| `chat-bar.png`      | Chat bar AI button                          | In README     |
+| `chat-window.png`   | AI chat window (sidebar, history, thinking) | In README     |
+| `explain.png`       | Explain / Fact-check with AI                | In README     |
+| `settings.png`      | Plugin settings                             | In README     |
+| `server-list.png`   | Bell under Direct Messages                  | Add this file |
+| `draft-reply.png`   | Draft a reply + Insert into chat            | Add this file |
+| `summarize.png`     | Channel / DM Summarize with AI menu         | Add this file |
+| `notifications.png` | AI notification center briefing             | Add this file |
 
 ## What to capture
 
