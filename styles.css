@@ -155,40 +155,46 @@ div:has(> .vc-grokai-root) {
 
 .vc-grokai-root,
 .vc-grokai-messages,
-.vc-grokai-input {
+.vc-grokai-input,
+.vc-grokai-nc-summary {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--interactive-normal, #b5bac1) 55%, transparent) transparent;
 }
 
 .vc-grokai-root::-webkit-scrollbar,
 .vc-grokai-messages::-webkit-scrollbar,
-.vc-grokai-input::-webkit-scrollbar {
+.vc-grokai-input::-webkit-scrollbar,
+.vc-grokai-nc-summary::-webkit-scrollbar {
     width: 6px;
     height: 6px;
 }
 
 .vc-grokai-root::-webkit-scrollbar-track,
 .vc-grokai-messages::-webkit-scrollbar-track,
-.vc-grokai-input::-webkit-scrollbar-track {
+.vc-grokai-input::-webkit-scrollbar-track,
+.vc-grokai-nc-summary::-webkit-scrollbar-track {
     background: transparent;
 }
 
 .vc-grokai-root::-webkit-scrollbar-thumb,
 .vc-grokai-messages::-webkit-scrollbar-thumb,
-.vc-grokai-input::-webkit-scrollbar-thumb {
+.vc-grokai-input::-webkit-scrollbar-thumb,
+.vc-grokai-nc-summary::-webkit-scrollbar-thumb {
     background-color: color-mix(in srgb, var(--interactive-normal, #b5bac1) 45%, transparent);
     border-radius: 99px;
 }
 
 .vc-grokai-root::-webkit-scrollbar-thumb:hover,
 .vc-grokai-messages::-webkit-scrollbar-thumb:hover,
-.vc-grokai-input::-webkit-scrollbar-thumb:hover {
+.vc-grokai-input::-webkit-scrollbar-thumb:hover,
+.vc-grokai-nc-summary::-webkit-scrollbar-thumb:hover {
     background-color: color-mix(in srgb, var(--interactive-hover, #dbdee1) 70%, transparent);
 }
 
 .vc-grokai-root::-webkit-scrollbar-corner,
 .vc-grokai-messages::-webkit-scrollbar-corner,
-.vc-grokai-input::-webkit-scrollbar-corner {
+.vc-grokai-input::-webkit-scrollbar-corner,
+.vc-grokai-nc-summary::-webkit-scrollbar-corner {
     background: transparent;
 }
 
@@ -677,8 +683,8 @@ div:has(> .vc-grokai-root) {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    min-height: 0;
-    max-height: min(62vh, 560px);
+    min-height: min(52vh, 480px);
+    max-height: min(64vh, 580px);
 }
 
 .vc-grokai-nc-toolbar {
@@ -688,116 +694,57 @@ div:has(> .vc-grokai-root) {
     flex-shrink: 0;
 }
 
-.vc-grokai-nc-list {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
 .vc-grokai-nc-empty {
     color: var(--text-muted, var(--text-normal));
-    font-size: 13px;
-    padding: 16px 6px;
+    font-size: 14px;
+    padding: 28px 12px;
     text-align: center;
-}
-
-.vc-grokai-nc-row {
-    display: flex;
-    align-items: stretch;
-    gap: 4px;
-    border-radius: 10px;
-    background: var(--background-secondary-alt, var(--background-secondary));
-    border: 1px solid var(--vc-grokai-line);
-}
-
-.vc-grokai-nc-open {
-    flex: 1 1 auto;
-    min-width: 0;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    text-align: left;
-    cursor: pointer;
-    padding: 10px 10px 10px 12px;
-    font: inherit;
-}
-
-.vc-grokai-nc-open:hover {
-    background: var(--background-modifier-hover);
-    border-radius: 10px 0 0 10px;
-}
-
-.vc-grokai-nc-where {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-}
-
-.vc-grokai-nc-place {
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--header-primary, var(--text-default, var(--text-normal)));
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.vc-grokai-nc-chan {
-    font-size: 12px;
-    color: var(--text-muted, var(--text-normal));
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.vc-grokai-nc-badge {
-    flex-shrink: 0;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    border-radius: 9px;
-    background: var(--status-danger, #f23f43);
-    color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 18px;
-    text-align: center;
-}
-
-.vc-grokai-nc-preview {
-    margin-top: 4px;
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--text-muted, var(--text-normal));
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.5;
 }
 
 .vc-grokai-nc-summary {
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: var(--background-secondary);
-    border: 1px solid var(--vc-grokai-line);
-    font-size: 13px;
-    line-height: 1.45;
-    max-height: 180px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px 18px 18px;
+    border-radius: 12px;
+    background: var(--background-secondary-alt, var(--background-tertiary, var(--background-secondary)));
+    border: 1px solid var(--vc-grokai-line);
+    color: var(--text-default, var(--text-normal));
+    font-size: 15px;
+    line-height: 1.65;
 }
 
 .vc-grokai-nc-summary.vc-grokai-error {
     border-color: var(--status-danger, #f23f43);
 }
 
-.vc-grokai-nc-summary-label {
-    font-size: 11px;
+.vc-grokai-nc-summary.vc-grokai-live {
+    opacity: 0.92;
+}
+
+.vc-grokai-nc-prose p {
+    margin: 0 0 12px;
+}
+
+.vc-grokai-nc-prose p:last-child {
+    margin-bottom: 0;
+}
+
+.vc-grokai-nc-prose strong,
+.vc-grokai-nc-prose b {
+    color: var(--header-primary, var(--text-default, var(--text-normal)));
     font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-muted, var(--text-normal));
-    margin-bottom: 6px;
+}
+
+.vc-grokai-nc-prose a {
+    color: var(--text-link, #00a8fc);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--text-link, #00a8fc) 45%, transparent);
+}
+
+.vc-grokai-nc-prose a:hover {
+    border-bottom-color: var(--text-link, #00a8fc);
 }

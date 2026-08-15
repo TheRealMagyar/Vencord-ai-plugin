@@ -369,6 +369,12 @@ const dict = {
         de: "Mit KI zusammenfassen",
         es: "Resumir con IA",
     },
+    notifRefresh: {
+        en: "Refresh briefing",
+        hu: "Összefoglaló frissítése",
+        de: "Briefing aktualisieren",
+        es: "Actualizar el resumen",
+    },
     notifSummarizing: {
         en: "Summarizing…",
         hu: "Összesítés…",

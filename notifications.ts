@@ -114,13 +114,24 @@ export function ackChannels(channelIds: string[]) {
     }
 }
 
+export function pingUrl(item: PingItem) {
+    const guild = item.guildId || "@me";
+    const tail = item.lastMessageId ? `/${item.lastMessageId}` : "";
+    return `https://discord.com/channels/${guild}/${item.channelId}${tail}`;
+}
+
 export function formatPingsForAi(items: PingItem[]) {
     if (!items.length) return "";
-    return items.map(item => {
+    return items.map((item, index) => {
         const where = item.isDm
-            ? `DM · ${item.channelName}`
+            ? `Direct message with ${item.channelName}`
             : `${item.guildName} · ${item.channelName}`;
-        const preview = item.preview ? `\n  ${item.preview}` : "";
-        return `[${where}] ${item.mentionCount} mention(s)${preview}`;
-    }).join("\n");
+        return [
+            `ITEM ${index + 1}`,
+            `Where: ${where}`,
+            `Mentions waiting: ${item.mentionCount}`,
+            item.preview ? `Latest text: ${item.preview}` : "Latest text: (not cached)",
+            `Link: ${pingUrl(item)}`,
+        ].join("\n");
+    }).join("\n\n");
 }

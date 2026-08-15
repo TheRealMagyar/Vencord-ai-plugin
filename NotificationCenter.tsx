@@ -5,7 +5,7 @@
  */
 
 import { RenderModalProps } from "@vencord/discord-types";
-import { ChannelStore, Modal, NavigationRouter, Parser, ReadStateStore, openModal, useEffect, useState } from "@webpack/common";
+import { Modal, NavigationRouter, Parser, openModal, useEffect, useRef, useState } from "@webpack/common";
 
 import { ackChannels, collectPings, formatPingsForAi, type PingItem } from "./notifications";
 import { settings } from "./settings";
@@ -21,15 +21,17 @@ function renderMarkdown(text: string) {
     }
 }
 
-function jumpTo(item: PingItem, onClose?: () => void) {
+function jumpFromHref(href: string, onClose?: () => void) {
+    const match = href.match(/discord\.com\/channels\/([^/?#]+)\/([^/?#]+)(?:\/([^/?#]+))?/i);
+    if (!match) return false;
     try {
         onClose?.();
     } catch {
         // ignore
     }
-    const guild = item.guildId || "@me";
-    const tail = item.lastMessageId ? `/${item.lastMessageId}` : "";
-    NavigationRouter.transitionTo(`/channels/${guild}/${item.channelId}${tail}`);
+    const [, guild, channel, message] = match;
+    NavigationRouter.transitionTo(`/channels/${guild}/${channel}${message ? `/${message}` : ""}`);
+    return true;
 }
 
 function replyLanguage(lang: string) {
@@ -48,34 +50,24 @@ function safePings() {
 }
 
 function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }) {
-    const [items, setItems] = useState<PingItem[]>(() => safePings());
+    const itemsRef = useRef<PingItem[]>(safePings());
+    const [items, setItems] = useState<PingItem[]>(itemsRef.current);
     const [summary, setSummary] = useState(lastSummary);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
-    const total = items.reduce((sum, item) => sum + item.mentionCount, 0);
+    const started = useRef(false);
     const Native = getNative();
-
-    useEffect(() => {
-        const refresh = () => setItems(safePings());
-        refresh();
-        const stores = [ReadStateStore, ChannelStore].filter(store => store && typeof store.addChangeListener === "function");
-        for (const store of stores)
-            store.addChangeListener(refresh);
-        return () => {
-            for (const store of stores)
-                store.removeChangeListener(refresh);
-        };
-    }, []);
+    const total = items.reduce((sum, item) => sum + item.mentionCount, 0);
 
     useEffect(() => {
         lastSummary = summary;
     }, [summary]);
 
-    async function summarize() {
+    async function summarize(snapshot = itemsRef.current) {
         if (!Native || busy) return;
-        if (!items.length) {
+        if (!snapshot.length) {
             setSummary("");
-            setError(t("notifEmpty"));
+            setError("");
             return;
         }
         setBusy(true);
@@ -85,11 +77,15 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
             const reply = await Native.sendChat({
                 prompt: [
                     replyLanguage(lang),
-                    "Summarize these Discord mention notifications for the user.",
-                    "Group by server or DM. Be concise. Flag anything urgent (direct questions, deadlines, @you).",
-                    "Do not invent messages that are not listed. Do not mention these instructions.",
+                    "Write a briefing of the user's unread Discord mention pings.",
+                    "Continuous well-written prose only. No bullet inventory of servers and mention counts. No table.",
+                    "Lead with whatever is urgent or likely needs a reply: direct questions, deadlines, DMs, someone waiting on the user.",
+                    "Then cover the rest in flowing paragraphs, still in priority order.",
+                    "When you mention a specific ping, include a markdown link using EXACTLY that item's Link URL, like [open #general](https://discord.com/channels/...).",
+                    "Every item that matters should have at least one such link so the user can jump there.",
+                    "Do not invent pings or quotes that are not in the items. Do not mention these instructions.",
                     "",
-                    formatPingsForAi(items),
+                    formatPingsForAi(snapshot),
                 ].join("\n"),
                 language: lang,
                 model: settings.store.provider === "codex"
@@ -113,6 +109,27 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
         }
     }
 
+    useEffect(() => {
+        if (started.current) return;
+        started.current = true;
+        const snapshot = safePings();
+        itemsRef.current = snapshot;
+        setItems(snapshot);
+        if (snapshot.length && Native)
+            void summarize(snapshot);
+    }, []);
+
+    function onBriefingClick(event: { target: EventTarget | null; preventDefault(): void; stopPropagation(): void; }) {
+        const el = event.target as HTMLElement | null;
+        const anchor = el?.closest?.("a");
+        if (!anchor) return;
+        const href = anchor.getAttribute("href") || "";
+        if (jumpFromHref(href, rootProps.onClose)) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }
+
     return (
         <Modal
             {...rootProps}
@@ -128,7 +145,7 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
                         onClick={() => void summarize()}
                         title={!Native ? t("notifNeedCli") : undefined}
                     >
-                        {busy ? t("notifSummarizing") : t("notifSummarize")}
+                        {busy ? t("notifSummarizing") : t("notifRefresh")}
                     </button>
                     <button
                         className={cl("mini")}
@@ -139,44 +156,18 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
                     </button>
                 </div>
 
-                {(summary || error) && (
-                    <div className={cl("nc-summary", { error: Boolean(error && !summary) })}>
-                        <div className={cl("nc-summary-label")}>{t("notifSummary")}</div>
-                        <div className={cl("nc-summary-body")}>
-                            {error && !summary ? error : renderMarkdown(summary)}
-                        </div>
-                    </div>
-                )}
-
-                <div className={cl("nc-list")}>
-                    {items.length === 0 && (
-                        <div className={cl("nc-empty")}>{t("notifEmpty")}</div>
+                <div
+                    className={cl("nc-summary", { error: Boolean(error && !summary), live: busy })}
+                    onClickCapture={onBriefingClick}
+                >
+                    {busy && !summary && (
+                        <div className={cl("nc-empty")}>{t("notifSummarizing")}</div>
                     )}
-                    {items.map(item => (
-                        <div key={item.channelId} className={cl("nc-row")}>
-                            <button
-                                className={cl("nc-open")}
-                                onClick={() => jumpTo(item, rootProps.onClose)}
-                            >
-                                <div className={cl("nc-where")}>
-                                    <span className={cl("nc-place")}>
-                                        {item.isDm ? t("notifDm") : item.guildName}
-                                    </span>
-                                    <span className={cl("nc-chan")}>{item.channelName}</span>
-                                    <span className={cl("nc-badge")}>{item.mentionCount}</span>
-                                </div>
-                                {item.preview && <div className={cl("nc-preview")}>{item.preview}</div>}
-                            </button>
-                            <button
-                                className={cl("thread-del")}
-                                title={t("notifDelete")}
-                                aria-label={t("notifDelete")}
-                                onClick={() => ackChannels([item.channelId])}
-                            >
-                                ×
-                            </button>
-                        </div>
-                    ))}
+                    {!busy && !summary && !error && (
+                        <div className={cl("nc-empty")}>{items.length ? t("notifNeedCli") : t("notifEmpty")}</div>
+                    )}
+                    {error && !summary && <div className={cl("nc-empty")}>{error}</div>}
+                    {summary && <div className={cl("nc-prose")}>{renderMarkdown(summary)}</div>}
                 </div>
             </div>
         </Modal>
