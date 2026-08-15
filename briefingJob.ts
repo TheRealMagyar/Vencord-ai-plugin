@@ -122,7 +122,7 @@ function notifyDone(ok: boolean) {
     try {
         void showNotification({
             title: message,
-            body: t("notifyBriefingReady"),
+            body: t("notifyOpenHint"),
             onClick: () => openHandler?.(),
         });
     } catch {

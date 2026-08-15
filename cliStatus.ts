@@ -9,8 +9,10 @@ import type { AiProvider, GrokStatus } from "./types";
 import { getNative, t } from "./utils";
 
 const REFRESH_MS = 5 * 60 * 1000;
+const FRESH_MS = 90_000;
 
 const cache: Partial<Record<AiProvider, GrokStatus>> = {};
+const checkedAt: Partial<Record<AiProvider, number>> = {};
 const inflight = new Map<AiProvider, Promise<GrokStatus>>();
 const listeners = new Set<() => void>();
 let timer = 0;
@@ -54,14 +56,15 @@ export function subscribeCliStatus(fn: () => void) {
 }
 
 export async function refreshCliStatus(provider: AiProvider, force = false) {
-    if (!force) {
-        const pending = inflight.get(provider);
-        if (pending) return pending;
-    }
+    const pending = inflight.get(provider);
+    if (pending) return pending;
+    if (!force && cache[provider] && Date.now() - (checkedAt[provider] ?? 0) < FRESH_MS)
+        return cache[provider]!;
 
     const Native = getNative();
     if (!Native) {
         cache[provider] = desktopOnly();
+        checkedAt[provider] = Date.now();
         emit();
         return cache[provider]!;
     }
@@ -69,6 +72,7 @@ export async function refreshCliStatus(provider: AiProvider, force = false) {
     const work = Native.getStatus(provider, customPath(provider), settings.store.language)
         .then(status => {
             cache[provider] = status;
+            checkedAt[provider] = Date.now();
             emit();
             return status;
         })
@@ -85,6 +89,7 @@ export async function refreshCliStatus(provider: AiProvider, force = false) {
                 error: error instanceof Error ? error.message : String(error),
             };
             cache[provider] = status;
+            checkedAt[provider] = Date.now();
             emit();
             return status;
         })

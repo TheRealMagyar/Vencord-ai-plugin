@@ -408,6 +408,7 @@ function extraRulesFor(request: ChatRequest) {
 
 function buildArgs(opts: {
     promptFile: string;
+    cwd: string;
     sessionId?: string | null;
     model?: string;
     allowWebSearch?: boolean;
@@ -421,10 +422,16 @@ function buildArgs(opts: {
         "--verbatim",
         "--max-turns", String(opts.maxTurns),
         "--output-format", "streaming-json",
-        "--cwd", isolatedCwd(),
         "--prompt-file", opts.promptFile,
         "--rules", opts.extraRules,
-        "--disallowed-tools", "run_terminal_cmd,search_replace,write,read_file,list_dir,grep,Agent",
+        "--cwd", opts.cwd,
+        "--disallowed-tools", [
+            "run_terminal_cmd", "search_replace", "write", "read_file", "list_dir", "grep", "Agent",
+            "ask_user_question", "image_gen", "image_edit", "image_to_video", "reference_to_video",
+            "workflow", "enter_plan_mode", "exit_plan_mode", "spawn_subagent",
+            "scheduler_create", "scheduler_delete", "scheduler_list", "monitor",
+            "todo_write", "use_tool", "search_tool",
+        ].join(","),
     ];
 
     if (opts.allowWebSearch) {
@@ -677,10 +684,10 @@ function createLineParser(onEvent: (event: Record<string, unknown>) => void) {
     };
 }
 
-function spawnGrok(grokPath: string, args: string[], opts: { allowFetch: boolean; timeoutMs: number; progress: ChatProgress; }) {
+function spawnGrok(grokPath: string, args: string[], opts: { cwd: string; allowFetch: boolean; timeoutMs: number; progress: ChatProgress; }) {
     return new Promise<{ stdout: string; stderr: string; code: number | null; timedOut: boolean; }>((resolve, reject) => {
         const child = spawn(grokPath, args, {
-            cwd: isolatedCwd(),
+            cwd: opts.cwd,
             windowsHide: true,
             stdio: ["ignore", "pipe", "pipe"],
             env: {
@@ -695,9 +702,21 @@ function spawnGrok(grokPath: string, args: string[], opts: { allowFetch: boolean
         let stdout = "";
         let stderr = "";
         let timedOut = false;
+        let killTimer: ReturnType<typeof setTimeout> | undefined;
         const timer = setTimeout(() => {
             timedOut = true;
-            child.kill();
+            try {
+                child.kill();
+            } catch {
+                // already gone
+            }
+            killTimer = setTimeout(() => {
+                try {
+                    child.kill("SIGKILL");
+                } catch {
+                    // already gone
+                }
+            }, 1500);
         }, opts.timeoutMs);
 
         const lines = createLineParser(event => applyGrokEvent(opts.progress, event));
@@ -713,10 +732,12 @@ function spawnGrok(grokPath: string, args: string[], opts: { allowFetch: boolean
         });
         child.on("error", error => {
             clearTimeout(timer);
+            if (killTimer) clearTimeout(killTimer);
             reject(error);
         });
         child.on("close", code => {
             clearTimeout(timer);
+            if (killTimer) clearTimeout(killTimer);
             lines.flush();
             resolve({ stdout, stderr, code, timedOut });
         });
@@ -744,6 +765,7 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
         const timeoutMs = timeoutMsFor(request);
         const args = buildArgs({
             promptFile,
+            cwd: promptDir,
             sessionId: request.sessionId,
             model: request.model,
             allowWebSearch,
@@ -752,6 +774,7 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
         });
 
         const { stdout, stderr, code, timedOut } = await spawnGrok(grokPath, args, {
+            cwd: promptDir,
             allowFetch: wantsWebFetch(request),
             timeoutMs,
             progress,
@@ -781,6 +804,7 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
 
         const retryArgs = buildArgs({
             promptFile,
+            cwd: promptDir,
             sessionId: null,
             model: request.model,
             allowWebSearch,
@@ -788,6 +812,7 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
             maxTurns: maxTurnsFor(request),
         });
         const retry = await spawnGrok(grokPath, retryArgs, {
+            cwd: promptDir,
             allowFetch: wantsWebFetch(request),
             timeoutMs,
             progress,

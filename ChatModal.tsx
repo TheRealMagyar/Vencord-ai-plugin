@@ -27,12 +27,20 @@ interface OpenOptions {
 
 type MessageActionKind = "explain" | "factcheck";
 
+const markdownCache = new Map<string, any>();
+
 function renderMarkdown(text: string) {
+    const hit = markdownCache.get(text);
+    if (hit !== undefined) return hit;
+    let parsed: any = text;
     try {
-        return Parser.parse(text, true, { allowHeading: true, allowLinks: true, allowList: true });
+        parsed = Parser.parse(text, true, { allowHeading: true, allowLinks: true, allowList: true });
     } catch {
-        return text;
+        parsed = text;
     }
+    if (markdownCache.size > 80) markdownCache.clear();
+    markdownCache.set(text, parsed);
+    return parsed;
 }
 
 function toolLabel(step: ChatToolStep) {
@@ -122,7 +130,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     }, [activeProvider]);
 
     useEffect(() => {
-        void refreshCliStatus(activeProvider, true);
+        void refreshCliStatus(activeProvider);
     }, [activeProvider, grokPath, codexPath, language]);
 
     useEffect(() => {
@@ -151,6 +159,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 return;
             }
             if (action) {
+                if (!Native) return;
                 const { kind, message } = action;
                 const content = getMessageContent(message);
                 const author = message.author?.username;

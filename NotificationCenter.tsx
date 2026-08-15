@@ -90,7 +90,14 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
 
     useEffect(() => {
         setBriefingWindowOpen(true);
-        const refresh = () => setTick(n => n + 1);
+        let timer = 0;
+        const refresh = () => {
+            if (timer) return;
+            timer = window.setTimeout(() => {
+                timer = 0;
+                setTick(n => n + 1);
+            }, 200);
+        };
         const unsub = subscribeBriefing(refresh);
         try {
             ReadStateStore.addChangeListener(refresh);
@@ -100,6 +107,7 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
         return () => {
             setBriefingWindowOpen(false);
             unsub();
+            if (timer) window.clearTimeout(timer);
             try {
                 ReadStateStore.removeChangeListener(refresh);
             } catch {

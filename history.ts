@@ -17,10 +17,20 @@ interface HistoryFile {
     threads: Record<string, StoredThread>;
 }
 
+let cached: HistoryFile | null = null;
+let writeChain: Promise<void> = Promise.resolve();
+
+function enqueueWrite(work: () => Promise<void>) {
+    const next = writeChain.then(work, work);
+    writeChain = next.then(() => undefined, () => undefined);
+    return next;
+}
+
 async function readFile(): Promise<HistoryFile> {
+    if (cached) return cached;
     const data = await DataStore.get<HistoryFile>(KEY);
-    if (data?.threads && typeof data.threads === "object") return data;
-    return { threads: {} };
+    cached = data?.threads && typeof data.threads === "object" ? data : { threads: {} };
+    return cached;
 }
 
 export function getThreadTitle(channelId: string | null | undefined) {
@@ -51,19 +61,25 @@ export async function loadThread(channelId: string): Promise<StoredThread | null
 }
 
 export async function saveThread(thread: StoredThread) {
-    const file = await readFile();
-    file.threads[thread.channelId] = {
-        ...thread,
-        messages: thread.messages.filter(msg => !msg.pending).slice(-MAX_MESSAGES),
-        updatedAt: Date.now(),
-    };
-    await DataStore.set(KEY, file);
+    return enqueueWrite(async () => {
+        const file = await readFile();
+        file.threads[thread.channelId] = {
+            ...thread,
+            messages: thread.messages.filter(msg => !msg.pending).slice(-MAX_MESSAGES),
+            updatedAt: Date.now(),
+        };
+        cached = file;
+        await DataStore.set(KEY, file);
+    });
 }
 
 export async function clearThread(channelId: string) {
-    const file = await readFile();
-    delete file.threads[channelId];
-    await DataStore.set(KEY, file);
+    return enqueueWrite(async () => {
+        const file = await readFile();
+        delete file.threads[channelId];
+        cached = file;
+        await DataStore.set(KEY, file);
+    });
 }
 
 export async function listThreads(): Promise<StoredThread[]> {

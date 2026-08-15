@@ -74,7 +74,7 @@ function jobKey(channelId: string) {
     return channelId || "__none__";
 }
 
-function emit(channelId: string) {
+function emit(channelId: string, broadcast = true) {
     const set = listeners.get(jobKey(channelId));
     if (set) {
         for (const fn of set) {
@@ -85,6 +85,7 @@ function emit(channelId: string) {
             }
         }
     }
+    if (!broadcast) return;
     for (const fn of allListeners) {
         try {
             fn();
@@ -228,11 +229,11 @@ export async function runLiveChat(opts: {
                     tools: live.tools,
                     text: live.text,
                 };
-                emit(opts.channelId);
+                emit(opts.channelId, false);
             } catch {
                 // ignore poll errors
             }
-        }, 220)
+        }, 400)
         : 0;
 
     try {
