@@ -56,7 +56,7 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 | 8 | No selfbots or API abuse | Does not send messages as you. `/ai` uses Vencord `sendBotMessage` (local Clyde-style notice). Channel context reads history the client can already see (`MessageStore` + the same `GET /channels/:id/messages` Discord uses when you scroll up). |
 | 9 | No untrusted third-party APIs (Google / GitHub ok) | Talks to the **local** official [Grok](https://x.ai/cli) or Codex CLI already signed in on the machine. GitHub is only used to update this userplugin. No random HTTP APIs from the renderer. |
 | 10 | No user-supplied API keys | No key field. Login is `grok login` / `codex login` on the user’s PC. Tokens stay in `~/.grok` / `~/.codex` and are never copied into Discord’s renderer. |
-| 11 | No new npm dependencies | No extra packages. Equicord APIs only: Chat Input Button, Message Popover, Commands, Header Bar, Server List. |
+| 11 | No new npm dependencies | No extra packages. Equicord APIs only: Chat Input Button, Message Popover, Commands, Header Bar. |
 
 ---
 
@@ -65,7 +65,7 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 | Area | What you get |
 | --- | --- |
 | Chat bar | AI button next to GIF / sticker / Nitro |
-| Server list | Bell under **Direct Messages** opens an **AI notification center** for mention pings |
+| Notifications | In the AI chat toolbar: **AI notifications** — summarize mention pings, clear them |
 | Channel header | AI button next to search / pins — works in **read-only** channels where you cannot type |
 | Channel menu | Right-click a channel / thread / group DM → **Open AI** |
 | Messages | Hover and right-click: **Explain with AI**, **Fact-check with AI** |
@@ -257,7 +257,6 @@ Also enable these API plugins if they appear separately:
 - Message Popover API
 - Commands API
 - Header Bar API
-- Server List API
 
 `HeaderBarAPI` is the channel-header AI button (read-only channels).
 
@@ -349,7 +348,7 @@ The in-plugin updater looks for `aiPlugin`, `aiPlugin.desktop`, `AI-Plugin`, and
 | --- | --- |
 | Open the AI chat | Chat bar AI button, channel header AI button, right-click the channel → **Open AI**, or `/ai` with no text |
 | Ask in the current channel | `/ai` + your question (the reply is posted as a bot message) |
-| Summarize mention pings | Server-list bell under Direct Messages → **Summarize with AI**. × clears a ping (marks it read) |
+| Summarize mention pings | Open the AI chat → **AI notifications** → **Summarize with AI**. × clears a ping (marks it read) |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Stop a running reply | **Stop** in the chat composer |
@@ -408,7 +407,7 @@ If **Include channel context** is on, nearby messages are attached (the target i
 | Allow web search | Grok only, for **normal chat** (fact-check has its own search) |
 | Show thinking | Live thinking + tool use (Grok and Codex) |
 | Fact-check depth | Quick, Balanced (default), or Deep |
-| Notification center | Bell under Direct Messages (restart after changing) |
+| Notification center | Button in the AI chat toolbar |
 | Include channel context | Attach Discord history for summaries, explain, and fact-check |
 | Grok / Codex path | Optional override if auto-detect fails |
 | Auto update | Pull from GitHub when Discord starts |
@@ -468,7 +467,6 @@ Sessions are resumed per channel and per provider (`--resume` / `codex exec resu
 | Plugin missing from Settings | Folder must be `src/userplugins/aiPlugin` (camelCase) with `index.tsx`. Rebuild (`pnpm build`) and fully restart Discord. See [Equicord troubleshooting](https://docs.equicord.org/plugins). |
 | No chat-bar button | Enable **AI-Plugin**; turn on Chat Input Button API; rebuild; restart Discord |
 | No header AI button | Enable Header Bar API; rebuild; restart Discord |
-| No bell under Direct Messages | Enable **Server List API** and the notification-center setting; rebuild; restart Discord |
 | `/ai` missing | Enable Commands API; restart after build |
 | Timed out | Use a quicker **Fact-check depth**, or retry |
 | Discord crashes when opening AI from a channel | Update to the latest plugin, rebuild, restart |

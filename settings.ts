@@ -109,9 +109,8 @@ export const settings = definePluginSettings({
     },
     showNotificationCenter: {
         type: OptionType.BOOLEAN,
-        description: "Show the AI notification center button under Direct Messages in the server list (restart required)",
+        description: "Show an AI notifications button in the AI chat toolbar",
         default: true,
-        restartNeeded: true,
     },
     autoUpdate: {
         type: OptionType.BOOLEAN,

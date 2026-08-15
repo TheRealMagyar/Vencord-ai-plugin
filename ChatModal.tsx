@@ -69,7 +69,7 @@ function resolveMessageAction(options?: OpenOptions): { kind: MessageActionKind;
 }
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
-    const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath, showThinking, factCheckDepth } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath", "showThinking", "factCheckDepth"]);
+    const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath, showThinking, factCheckDepth, showNotificationCenter } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath", "showThinking", "factCheckDepth", "showNotificationCenter"]);
     const [status, setStatus] = useState<GrokStatus | null>(() => getCachedStatus(provider === "codex" ? "codex" : "grok"));
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
@@ -444,6 +444,20 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         {messages.length ? ` · ${messages.filter(m => !m.pending).length}` : ""}
                     </span>
                     <div className={cl("toolbar-actions")}>
+                        {showNotificationCenter && (
+                            <button
+                                className={cl("mini")}
+                                onClick={() => {
+                                    try {
+                                        (require("./NotificationCenter") as typeof import("./NotificationCenter")).openNotificationCenter();
+                                    } catch {
+                                        // ignore
+                                    }
+                                }}
+                            >
+                                {t("notifCenter")}
+                            </button>
+                        )}
                         <button
                             className={cl("mini", { on: showThinking })}
                             onClick={() => { settings.store.showThinking = !showThinking; }}

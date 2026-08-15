@@ -9,7 +9,6 @@ import "./styles.css";
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { addMessagePopoverButton, removeMessagePopoverButton } from "@api/MessagePopover";
-import { addServerListElement, removeServerListElement, ServerListRenderPosition } from "@api/ServerList";
 import { migratePluginSetting, migratePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
@@ -22,7 +21,6 @@ import { packChannelContext, withTranscript } from "./channelContext";
 import { getCachedStatus, refreshCliStatus, startCliStatusWatch, stopCliStatusWatch, subscribeCliStatus } from "./cliStatus";
 import { openGrokModal } from "./ChatModal";
 import { FactCheckIcon, GrokIcon } from "./GrokIcon";
-import { renderNotificationCenterButton } from "./ServerListButton";
 import { settings } from "./settings";
 import type { GrokStatus, UpdateStatus } from "./types";
 import { cl, getMessageContent, getNative, t } from "./utils";
@@ -210,19 +208,13 @@ export default definePlugin({
     authors: [{ name: "TheRealMagyar", id: 462651633709613056n }],
     searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck", "notifications", "inbox", "mentions"],
     tags: ["Chat", "Utility"],
-    dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI", "ServerListAPI"],
+    dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI"],
     settings,
     settingsAboutComponent: SettingsAbout,
     requiresRestart: true,
 
     async start() {
         addMessagePopoverButton("AI-Plugin-factcheck", factCheckPopover, FactCheckIcon);
-        try {
-            if (settings.store.showNotificationCenter)
-                addServerListElement(ServerListRenderPosition.Above, renderNotificationCenterButton);
-        } catch {
-            // ServerListAPI missing or Discord UI not ready
-        }
         startCliStatusWatch();
         if (!settings.store.autoUpdate) return;
         const Native = getNative();
@@ -238,19 +230,11 @@ export default definePlugin({
 
     stop() {
         removeMessagePopoverButton("AI-Plugin-factcheck");
-        removeServerListElement(ServerListRenderPosition.Above, renderNotificationCenterButton);
         stopCliStatusWatch();
     },
 
     toolboxActions: {
         "Update AI-Plugin": () => runPluginUpdate(settings.store.language),
-        "AI notifications": () => {
-            try {
-                (require("./NotificationCenter") as typeof import("./NotificationCenter")).openNotificationCenter();
-            } catch {
-                // ignore
-            }
-        },
     },
 
     contextMenus: {
