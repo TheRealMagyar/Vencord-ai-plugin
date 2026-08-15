@@ -32,10 +32,10 @@ const dict = {
         es: "La CLI de Grok no pudo iniciar sesión: {error}. Ejecuta: grok login",
     },
     grokEmpty: {
-        en: "The Grok CLI returned an empty reply.",
-        hu: "A Grok CLI üres választ adott.",
-        de: "Die Grok-CLI hat eine leere Antwort gegeben.",
-        es: "La CLI de Grok devolvió una respuesta vacía.",
+        en: "The Grok CLI returned an empty reply. Check `grok login` and try again.",
+        hu: "A Grok CLI üres választ adott. Nézd meg: `grok login`, aztán próbáld újra.",
+        de: "Die Grok-CLI hat eine leere Antwort gegeben. Prüfe `grok login` und versuche es erneut.",
+        es: "La CLI de Grok devolvió una respuesta vacía. Revisa `grok login` e inténtalo de nuevo.",
     },
     grokParse: {
         en: "Could not read text from the Grok reply.",

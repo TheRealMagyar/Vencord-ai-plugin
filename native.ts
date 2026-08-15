@@ -415,10 +415,10 @@ function buildArgs(opts: {
     maxTurns: number;
 }) {
     const args = [
-        "--no-auto-update",
         "--no-plan",
         "--no-subagents",
         "--no-memory",
+        "--verbatim",
         "--max-turns", String(opts.maxTurns),
         "--output-format", "streaming-json",
         "--cwd", isolatedCwd(),
@@ -505,13 +505,14 @@ function stringField(value: unknown): string | null {
 }
 
 function textFromPayload(data: Record<string, unknown>) {
-    for (const key of ["text", "result", "output_text", "message", "content"] as const) {
+    for (const key of ["text", "result", "output_text", "message", "content", "data", "delta"] as const) {
         const direct = stringField(data[key]);
         if (direct) return direct;
         const nested = data[key];
         if (nested && typeof nested === "object") {
             const inner = stringField((nested as { text?: unknown; }).text)
-                || stringField((nested as { content?: unknown; }).content);
+                || stringField((nested as { content?: unknown; }).content)
+                || stringField((nested as { data?: unknown; }).data);
             if (inner) return inner;
         }
     }
@@ -522,7 +523,7 @@ function textFromPayload(data: Record<string, unknown>) {
             const item = messages[i];
             if (!item || typeof item !== "object") continue;
             const rec = item as Record<string, unknown>;
-            const text = stringField(rec.text) || stringField(rec.content) || stringField(rec.result);
+            const text = stringField(rec.text) || stringField(rec.content) || stringField(rec.result) || stringField(rec.data);
             if (text) return text;
         }
     }
@@ -530,8 +531,32 @@ function textFromPayload(data: Record<string, unknown>) {
     return null;
 }
 
+function textFromStream(objects: Record<string, unknown>[]) {
+    const parts: string[] = [];
+    for (const data of objects) {
+        const type = typeof data.type === "string" ? data.type : "";
+        if (type === "error" || type === "thought" || type === "available_commands" || type === "usage")
+            continue;
+        if (type === "text" || type === "assistant" || type === "message" || type === "agent_message") {
+            const chunk = stringField(data.data) || textFromPayload(data);
+            if (chunk) parts.push(chunk);
+        }
+    }
+    if (parts.length) return parts.join("");
+    for (let i = objects.length - 1; i >= 0; i--) {
+        if (objects[i].type === "error") continue;
+        const text = textFromPayload(objects[i]);
+        if (text) return text;
+    }
+    return null;
+}
+
 function sessionIdFrom(data: Record<string, unknown>) {
     return stringField(data.sessionId) || stringField(data.session_id);
+}
+
+function looksLikeCliError(text: string) {
+    return /^(error:|session\s)|not found|failed to restore|unknown session|invalid session|not logged in|please log in/i.test(text.trim());
 }
 
 function parseReply(stdout: string, language?: string): GrokReply {
@@ -542,6 +567,8 @@ function parseReply(stdout: string, language?: string): GrokReply {
 
     const objects = extractJsonObjects(trimmed);
     if (!objects.length) {
+        if (looksLikeCliError(trimmed))
+            return { ok: false, text: "", sessionId: null, error: clipCliError(trimmed) };
         return { ok: true, text: trimmed, sessionId: null, error: null };
     }
 
@@ -550,13 +577,9 @@ function parseReply(stdout: string, language?: string): GrokReply {
     for (const data of objects)
         sessionId = sessionIdFrom(data) || sessionId;
 
-    for (let i = objects.length - 1; i >= 0; i--) {
-        const data = objects[i];
-        if (data.type === "error") continue;
-        const text = textFromPayload(data);
-        if (text)
-            return { ok: true, text, sessionId: sessionIdFrom(data) || sessionId, error: null };
-    }
+    const text = textFromStream(objects);
+    if (text)
+        return { ok: true, text, sessionId, error: null };
 
     return {
         ok: false,
@@ -575,8 +598,10 @@ function applyGrokEvent(progress: ChatProgress, event: Record<string, unknown>) 
         if (chunk) progress.thought = clipThought(progress.thought + chunk);
         return;
     }
-    if (type === "text") {
-        const chunk = typeof event.data === "string" ? event.data : "";
+    if (type === "text" || type === "assistant" || type === "message" || type === "agent_message") {
+        const chunk = typeof event.data === "string"
+            ? event.data
+            : (asText(event.text) || asText(event.content) || asText(event.delta) || "");
         if (!chunk) return;
         const acc = (progress as ChatProgress & { _rawText?: string; _postTool?: string; _sawTool?: boolean; });
         acc._rawText = (acc._rawText || "") + chunk;
@@ -682,7 +707,10 @@ function spawnGrok(grokPath: string, args: string[], opts: { allowFetch: boolean
             stdout += chunk;
             lines.push(chunk);
         });
-        child.stderr?.on("data", chunk => { stderr += chunk; });
+        child.stderr?.on("data", chunk => {
+            stderr += chunk;
+            lines.push(chunk);
+        });
         child.on("error", error => {
             clearTimeout(timer);
             reject(error);
@@ -729,53 +757,49 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
             progress,
         });
 
-        const streamedText = progress.text.trim();
-        const streamedSession = progress.sessionId;
-        if (timedOut && !streamedText) {
-            return {
-                ok: false,
-                text: "",
-                sessionId: streamedSession,
-                error: nativeT(request.language, "timedOutFactCheck", { seconds: timeoutMs / 1000 }),
-                thought: progress.thought || undefined,
-                tools: progress.tools,
-            };
-        }
-        if (streamedText) {
-            if (code && code !== 0 && progress.status === "error" && !streamedText) {
-                return {
-                    ok: false,
-                    text: "",
-                    sessionId: streamedSession,
-                    error: progress.error || stderr.trim() || nativeT(request.language, "grokExit", { code: code ?? "?" }),
-                    thought: progress.thought || undefined,
-                    tools: progress.tools,
-                };
-            }
-            return {
-                ok: true,
-                text: streamedText,
-                sessionId: streamedSession,
-                error: null,
-                thought: progress.thought || undefined,
-                tools: progress.tools,
-            };
-        }
+        const reply = finishGrokReply(progress, {
+            stdout,
+            stderr,
+            code,
+            timedOut,
+            timeoutMs,
+            language: request.language,
+        });
+        if (reply.ok || !request.sessionId || !shouldRetryGrokWithoutSession(reply, stderr))
+            return reply;
 
-        const parsed = parseReply(stdout, request.language);
-        if (!parsed.ok) return { ...parsed, thought: progress.thought || undefined, tools: progress.tools };
-        if (code && code !== 0 && !parsed.text) {
-            return {
-                ok: false,
-                text: "",
-                sessionId: parsed.sessionId,
-                error: stderr.trim() || parsed.error || nativeT(request.language, "grokExit", { code: code ?? "?" }),
-                thought: progress.thought || undefined,
-                tools: progress.tools,
-            };
-        }
+        progress.sessionId = null;
+        progress.error = null;
+        progress.status = "running";
+        progress.text = "";
+        progress.thought = "";
+        progress.tools = [];
+        const acc = progress as ChatProgress & { _rawText?: string; _postTool?: string; _sawTool?: boolean; };
+        acc._rawText = "";
+        acc._postTool = "";
+        acc._sawTool = false;
 
-        return { ...parsed, thought: progress.thought || undefined, tools: progress.tools };
+        const retryArgs = buildArgs({
+            promptFile,
+            sessionId: null,
+            model: request.model,
+            allowWebSearch,
+            extraRules: extraRulesFor(request),
+            maxTurns: maxTurnsFor(request),
+        });
+        const retry = await spawnGrok(grokPath, retryArgs, {
+            allowFetch: wantsWebFetch(request),
+            timeoutMs,
+            progress,
+        });
+        return finishGrokReply(progress, {
+            stdout: retry.stdout,
+            stderr: retry.stderr,
+            code: retry.code,
+            timedOut: retry.timedOut,
+            timeoutMs,
+            language: request.language,
+        });
     } catch (error) {
         return {
             ok: false,
@@ -786,6 +810,53 @@ async function runPrompt(request: ChatRequest, progress: ChatProgress): Promise<
     } finally {
         rmSync(promptDir, { recursive: true, force: true });
     }
+}
+
+function shouldRetryGrokWithoutSession(reply: GrokReply, stderr = "") {
+    const err = `${reply.error || ""} ${stderr}`.toLowerCase();
+    return /not found|unknown session|failed to restore|invalid session|invalid thread|resume|404|empty reply|üres válasz|leere antwort|respuesta vacía/.test(err);
+}
+
+function finishGrokReply(
+    progress: ChatProgress,
+    extra: {
+        stdout: string;
+        stderr?: string;
+        code?: number | null;
+        timedOut?: boolean;
+        timeoutMs?: number;
+        language?: string;
+    },
+): GrokReply {
+    const streamedText = progress.text.trim();
+    const extras = { thought: progress.thought || undefined, tools: progress.tools };
+    if (extra.timedOut && !streamedText) {
+        return {
+            ok: false,
+            text: "",
+            sessionId: progress.sessionId,
+            error: nativeT(extra.language, "timedOutFactCheck", { seconds: (extra.timeoutMs || PROMPT_TIMEOUT_MS) / 1000 }),
+            ...extras,
+        };
+    }
+    if (streamedText)
+        return { ok: true, text: streamedText, sessionId: progress.sessionId, error: null, ...extras };
+
+    if (progress.error)
+        return { ok: false, text: "", sessionId: progress.sessionId, error: progress.error, ...extras };
+
+    const parsed = parseReply(`${extra.stdout || ""}\n${extra.stderr || ""}`, extra.language);
+    if (parsed.ok && parsed.text)
+        return { ...parsed, sessionId: parsed.sessionId || progress.sessionId, ...extras };
+
+    const stderr = clipCliError(extra.stderr || "");
+    if (extra.code && extra.code !== 0)
+        return { ok: false, text: "", sessionId: parsed.sessionId || progress.sessionId, error: stderr || parsed.error || nativeT(extra.language, "grokExit", { code: extra.code ?? "?" }), ...extras };
+    if (stderr)
+        return { ok: false, text: "", sessionId: parsed.sessionId || progress.sessionId, error: stderr, ...extras };
+    if (parsed.error && parsed.error !== nativeT(extra.language, "grokEmpty"))
+        return { ...parsed, sessionId: parsed.sessionId || progress.sessionId, ...extras };
+    return { ok: false, text: "", sessionId: parsed.sessionId || progress.sessionId, error: nativeT(extra.language, "grokEmpty"), ...extras };
 }
 
 function itemText(item: Record<string, unknown>) {
