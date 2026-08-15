@@ -5,47 +5,47 @@
  */
 
 import ErrorBoundary from "@components/ErrorBoundary";
-import { ReadStateStore, useStateFromStores } from "@webpack/common";
 
-import { openNotificationCenter } from "./NotificationCenter";
-import { totalMentionCount } from "./notifications";
-import { settings } from "./settings";
-import { cl, t } from "./utils";
+import { cl } from "./utils";
 
-function BellIcon() {
-    return (
-        <svg viewBox="0 0 24 24" width={22} height={22} aria-hidden="true" fill="currentColor">
-            <path d="M12 2a6 6 0 0 0-6 6v2.3c0 .6-.2 1.2-.6 1.7L3.8 14.8A1.5 1.5 0 0 0 5 17.2h14a1.5 1.5 0 0 0 1.2-2.4l-1.6-2.8c-.4-.5-.6-1.1-.6-1.7V8a6 6 0 0 0-6-6Zm0 20a3 3 0 0 0 2.8-2H9.2A3 3 0 0 0 12 22Z" />
-        </svg>
-    );
+function openCenter() {
+    try {
+        const mod = require("./NotificationCenter") as { openNotificationCenter: () => void; };
+        mod.openNotificationCenter();
+    } catch {
+        // never crash the guild list
+    }
 }
 
 function NotificationCenterButton() {
-    settings.use(["language"]);
-    const count = useStateFromStores([ReadStateStore], () => {
-        try {
-            return totalMentionCount();
-        } catch {
-            return 0;
-        }
-    });
-
     return (
         <div className={cl("sl")}>
-            <button
-                type="button"
+            <div
                 className={cl("sl-btn")}
-                aria-label={t("notifCenter")}
-                title={t("notifCenter")}
-                onClick={() => openNotificationCenter()}
+                role="button"
+                tabIndex={0}
+                title="AI notifications"
+                aria-label="AI notifications"
+                onClick={openCenter}
+                onKeyDown={event => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openCenter();
+                    }
+                }}
             >
-                <BellIcon />
-                {count > 0 && (
-                    <span className={cl("sl-badge")}>{count > 99 ? "99+" : count}</span>
-                )}
-            </button>
+                <svg viewBox="0 0 24 24" width={22} height={22} aria-hidden="true" fill="currentColor">
+                    <path d="M12 2a6 6 0 0 0-6 6v2.3c0 .6-.2 1.2-.6 1.7L3.8 14.8A1.5 1.5 0 0 0 5 17.2h14a1.5 1.5 0 0 0 1.2-2.4l-1.6-2.8c-.4-.5-.6-1.1-.6-1.7V8a6 6 0 0 0-6-6Zm0 20a3 3 0 0 0 2.8-2H9.2A3 3 0 0 0 12 22Z" />
+                </svg>
+            </div>
         </div>
     );
 }
 
-export const renderNotificationCenterButton = ErrorBoundary.wrap(NotificationCenterButton, { noop: true });
+export function renderNotificationCenterButton() {
+    return (
+        <ErrorBoundary noop>
+            <NotificationCenterButton />
+        </ErrorBoundary>
+    );
+}

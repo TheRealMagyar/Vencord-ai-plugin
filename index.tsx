@@ -244,6 +244,13 @@ export default definePlugin({
 
     toolboxActions: {
         "Update AI-Plugin": () => runPluginUpdate(settings.store.language),
+        "AI notifications": () => {
+            try {
+                (require("./NotificationCenter") as typeof import("./NotificationCenter")).openNotificationCenter();
+            } catch {
+                // ignore
+            }
+        },
     },
 
     contextMenus: {

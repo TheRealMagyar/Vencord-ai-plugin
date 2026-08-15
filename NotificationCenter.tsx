@@ -5,9 +5,9 @@
  */
 
 import { RenderModalProps } from "@vencord/discord-types";
-import { ChannelStore, Modal, NavigationRouter, Parser, ReadStateStore, openModal, useEffect, useState, useStateFromStores } from "@webpack/common";
+import { ChannelStore, Modal, NavigationRouter, Parser, ReadStateStore, openModal, useEffect, useState } from "@webpack/common";
 
-import { ackChannels, collectPings, formatPingsForAi, totalMentionCount, type PingItem } from "./notifications";
+import { ackChannels, collectPings, formatPingsForAi, type PingItem } from "./notifications";
 import { settings } from "./settings";
 import { cl, getNative, t } from "./utils";
 
@@ -39,19 +39,33 @@ function replyLanguage(lang: string) {
     return "Always reply in English.";
 }
 
+function safePings() {
+    try {
+        return collectPings();
+    } catch {
+        return [];
+    }
+}
+
 function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }) {
-    const items = useStateFromStores([ReadStateStore, ChannelStore], () => {
-        try {
-            return collectPings();
-        } catch {
-            return [];
-        }
-    });
+    const [items, setItems] = useState<PingItem[]>(() => safePings());
     const [summary, setSummary] = useState(lastSummary);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
-    const total = totalMentionCount(items);
+    const total = items.reduce((sum, item) => sum + item.mentionCount, 0);
     const Native = getNative();
+
+    useEffect(() => {
+        const refresh = () => setItems(safePings());
+        refresh();
+        const stores = [ReadStateStore, ChannelStore].filter(store => store && typeof store.addChangeListener === "function");
+        for (const store of stores)
+            store.addChangeListener(refresh);
+        return () => {
+            for (const store of stores)
+                store.removeChangeListener(refresh);
+        };
+    }, []);
 
     useEffect(() => {
         lastSummary = summary;
@@ -170,5 +184,9 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
 }
 
 export function openNotificationCenter() {
-    openModal(props => <NotificationCenterModal rootProps={props} />);
+    try {
+        openModal(props => <NotificationCenterModal rootProps={props} />);
+    } catch {
+        // ignore
+    }
 }
