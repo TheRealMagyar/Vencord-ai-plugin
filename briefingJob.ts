@@ -25,6 +25,7 @@ const listeners = new Set<() => void>();
 let openWindows = 0;
 let openHandler: (() => void) | null = null;
 let running = false;
+let jobId = 0;
 
 let state: BriefingState = {
     status: "idle",
@@ -54,6 +55,13 @@ export function subscribeBriefing(fn: () => void) {
     return () => {
         listeners.delete(fn);
     };
+}
+
+export function clearBriefing() {
+    jobId++;
+    running = false;
+    state = { status: "idle", summary: "", error: "", items: [] };
+    emit();
 }
 
 function emit() {
@@ -135,6 +143,7 @@ export async function startBriefing() {
         return;
     }
 
+    const thisJob = ++jobId;
     running = true;
     state = { ...state, status: "running", error: "", items };
     emit();
@@ -166,6 +175,7 @@ export async function startBriefing() {
             kind: "chat",
             allowWebSearch: false,
         });
+        if (thisJob !== jobId) return;
         if (reply.ok && reply.text.trim()) {
             state = { status: "done", summary: reply.text.trim(), error: "", items };
             emit();
@@ -176,6 +186,7 @@ export async function startBriefing() {
         emit();
         notifyDone(false);
     } catch (err) {
+        if (thisJob !== jobId) return;
         state = {
             ...state,
             status: "error",
@@ -184,6 +195,7 @@ export async function startBriefing() {
         emit();
         notifyDone(false);
     } finally {
-        running = false;
+        if (thisJob === jobId)
+            running = false;
     }
 }

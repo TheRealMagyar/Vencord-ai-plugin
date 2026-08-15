@@ -5,9 +5,9 @@
  */
 
 import { RenderModalProps } from "@vencord/discord-types";
-import { Modal, NavigationRouter, openModal, useEffect, useState } from "@webpack/common";
+import { Modal, NavigationRouter, openModal, ReadStateStore, useEffect, useState } from "@webpack/common";
 
-import { getBriefingState, setBriefingWindowOpen, setOpenBriefingHandler, startBriefing, subscribeBriefing } from "./briefingJob";
+import { clearBriefing, getBriefingState, setBriefingWindowOpen, setOpenBriefingHandler, startBriefing, subscribeBriefing } from "./briefingJob";
 import { ackChannels, collectPings } from "./notifications";
 import { cl, getNative, t } from "./utils";
 
@@ -81,7 +81,7 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
     const [, setTick] = useState(0);
     const live = collectPings();
     const briefing = getBriefingState();
-    const items = live.length ? live : briefing.items;
+    const items = live;
     const total = items.reduce((sum, item) => sum + item.mentionCount, 0);
     const busy = briefing.status === "running";
     const summary = briefing.summary;
@@ -89,10 +89,21 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
 
     useEffect(() => {
         setBriefingWindowOpen(true);
-        const unsub = subscribeBriefing(() => setTick(n => n + 1));
+        const refresh = () => setTick(n => n + 1);
+        const unsub = subscribeBriefing(refresh);
+        try {
+            ReadStateStore.addChangeListener(refresh);
+        } catch {
+            // ignore
+        }
         return () => {
             setBriefingWindowOpen(false);
             unsub();
+            try {
+                ReadStateStore.removeChangeListener(refresh);
+            } catch {
+                // ignore
+            }
         };
     }, []);
 
@@ -115,8 +126,12 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
                     </button>
                     <button
                         className={cl("mini")}
-                        disabled={!items.length}
-                        onClick={() => ackChannels(items.map(item => item.channelId))}
+                        disabled={!items.length && !summary && !busy}
+                        onClick={() => {
+                            ackChannels();
+                            clearBriefing();
+                            setTick(n => n + 1);
+                        }}
                     >
                         {t("notifDeleteAll")}
                     </button>
