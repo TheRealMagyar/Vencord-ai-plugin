@@ -243,6 +243,18 @@ const dict = {
         de: "Klicken, um den KI-Chat zu öffnen",
         es: "Haz clic para abrir el chat de IA",
     },
+    notifyBriefingReady: {
+        en: "AI notification briefing is ready",
+        hu: "Az AI értesítés-összefoglaló kész",
+        de: "KI-Benachrichtigungsbriefing ist fertig",
+        es: "El resumen de notificaciones está listo",
+    },
+    notifyBriefingFailed: {
+        en: "AI notification briefing failed",
+        hu: "Az AI értesítés-összefoglaló sikertelen",
+        de: "KI-Benachrichtigungsbriefing fehlgeschlagen",
+        es: "El resumen de notificaciones falló",
+    },
     factCheckWithAi: {
         en: "Fact-check with AI",
         hu: "Tényellenőrzés AI-val",

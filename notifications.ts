@@ -16,6 +16,7 @@ export interface PingItem {
     channelName: string;
     mentionCount: number;
     preview: string;
+    snippets?: string[];
     lastMessageId: string | null;
     timestamp: number;
     isDm: boolean;
@@ -29,18 +30,21 @@ function channelNameOf(channel: Channel) {
     return "DM";
 }
 
-function previewFromStore(channelId: string) {
+function previewsFromStore(channelId: string, limit: number) {
     try {
         const bucket = MessageStore.getMessages(channelId) as { _array?: any[]; toArray?: () => any[]; };
         const arr = bucket?._array ?? bucket?.toArray?.() ?? [];
-        for (let i = arr.length - 1; i >= 0; i--) {
-            const text = getMessageContent(arr[i]);
-            if (text) return text.replace(/\s+/g, " ").trim().slice(0, 180);
+        const out: string[] = [];
+        for (let i = arr.length - 1; i >= 0 && out.length < limit; i--) {
+            const author = arr[i]?.author?.globalName || arr[i]?.author?.username || "";
+            const text = getMessageContent(arr[i]).replace(/\s+/g, " ").trim();
+            if (!text) continue;
+            out.push(author ? `${author}: ${text.slice(0, 220)}` : text.slice(0, 220));
         }
+        return out.reverse();
     } catch {
-        // ignore
+        return [];
     }
-    return "";
 }
 
 function mentionChannelIds() {
@@ -78,13 +82,15 @@ export function collectPings(): PingItem[] {
             } catch {
                 // ignore
             }
+            const snippets = previewsFromStore(channelId, 3);
             items.push({
                 channelId,
                 guildId,
                 guildName: guild?.name || "",
                 channelName: channelNameOf(channel),
                 mentionCount,
-                preview: previewFromStore(channelId),
+                preview: snippets[snippets.length - 1] || "",
+                snippets,
                 lastMessageId,
                 timestamp,
                 isDm: !guildId,
@@ -120,17 +126,19 @@ export function pingUrl(item: PingItem) {
     return `https://discord.com/channels/${guild}/${item.channelId}${tail}`;
 }
 
-export function formatPingsForAi(items: PingItem[]) {
+export function formatPingsForAi(items: PingItem[], depth: "surface" | "medium" | "detailed" = "medium") {
     if (!items.length) return "";
+    const snippetCount = depth === "detailed" ? 3 : depth === "medium" ? 2 : 1;
     return items.map((item, index) => {
         const where = item.isDm
             ? `Direct message with ${item.channelName}`
             : `${item.guildName} · ${item.channelName}`;
+        const lines = item.snippets?.slice(-snippetCount) ?? (item.preview ? [item.preview] : []);
         return [
             `ITEM ${index + 1}`,
             `Where: ${where}`,
             `Mentions waiting: ${item.mentionCount}`,
-            item.preview ? `Latest text: ${item.preview}` : "Latest text: (not cached)",
+            lines.length ? `Recent text:\n  ${lines.join("\n  ")}` : "Recent text: (not cached)",
             `Link: ${pingUrl(item)}`,
         ].join("\n");
     }).join("\n\n");

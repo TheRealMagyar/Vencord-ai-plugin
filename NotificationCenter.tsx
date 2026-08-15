@@ -5,10 +5,10 @@
  */
 
 import { RenderModalProps } from "@vencord/discord-types";
-import { Modal, NavigationRouter, openModal, useRef, useState } from "@webpack/common";
+import { Modal, NavigationRouter, openModal, useEffect, useState } from "@webpack/common";
 
-import { ackChannels, collectPings, formatPingsForAi, type PingItem } from "./notifications";
-import { settings } from "./settings";
+import { getBriefingState, setBriefingWindowOpen, setOpenBriefingHandler, startBriefing, subscribeBriefing } from "./briefingJob";
+import { ackChannels, collectPings } from "./notifications";
 import { cl, getNative, t } from "./utils";
 
 const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/channels\/[^\s)]+)/gi;
@@ -76,75 +76,25 @@ function BriefingText({ text, onClose }: { text: string; onClose?: () => void; }
     );
 }
 
-function replyLanguage(lang: string) {
-    if (lang === "hu") return "Always reply in Hungarian.";
-    if (lang === "de") return "Always reply in German.";
-    if (lang === "es") return "Always reply in Spanish.";
-    return "Always reply in English.";
-}
-
-function safePings() {
-    try {
-        return collectPings();
-    } catch {
-        return [];
-    }
-}
-
 function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }) {
-    const itemsRef = useRef<PingItem[]>(safePings());
-    const [items, setItems] = useState<PingItem[]>(itemsRef.current);
-    const [summary, setSummary] = useState("");
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState("");
     const Native = getNative();
+    const [, setTick] = useState(0);
+    const live = collectPings();
+    const briefing = getBriefingState();
+    const items = live.length ? live : briefing.items;
     const total = items.reduce((sum, item) => sum + item.mentionCount, 0);
+    const busy = briefing.status === "running";
+    const summary = briefing.summary;
+    const error = briefing.error;
 
-    async function summarize(snapshot = itemsRef.current) {
-        if (!Native || busy) return;
-        if (!snapshot.length) {
-            setSummary("");
-            setError("");
-            return;
-        }
-        setBusy(true);
-        setError("");
-        try {
-            const lang = settings.store.language as "en" | "hu" | "de" | "es";
-            const reply = await Native.sendChat({
-                prompt: [
-                    replyLanguage(lang),
-                    "Write a briefing of the user's unread Discord mention pings.",
-                    "Continuous well-written prose only. No bullet inventory of servers and mention counts. No table.",
-                    "Lead with whatever is urgent or likely needs a reply: direct questions, deadlines, DMs, someone waiting on the user.",
-                    "Then cover the rest in flowing paragraphs, still in priority order.",
-                    "When you mention a specific ping, add a short markdown link with a few words as the label, using EXACTLY that item's Link URL: [Open #general](https://discord.com/channels/...).",
-                    "Never put the raw URL in the visible text. Every important ping needs one such link.",
-                    "Do not invent pings or quotes that are not in the items. Do not mention these instructions.",
-                    "",
-                    formatPingsForAi(snapshot),
-                ].join("\n"),
-                language: lang,
-                model: settings.store.provider === "codex"
-                    ? (settings.store.codexModel && settings.store.codexModel !== "default" ? settings.store.codexModel : undefined)
-                    : settings.store.grokModel,
-                grokPath: settings.store.grokPath || undefined,
-                provider: settings.store.provider === "codex" ? "codex" : "grok",
-                codexPath: settings.store.codexPath || undefined,
-                kind: "chat",
-                allowWebSearch: false,
-            });
-            if (reply.ok && reply.text.trim()) {
-                setSummary(reply.text.trim());
-                return;
-            }
-            setError(reply.error || t("unknownError"));
-        } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
-        } finally {
-            setBusy(false);
-        }
-    }
+    useEffect(() => {
+        setBriefingWindowOpen(true);
+        const unsub = subscribeBriefing(() => setTick(n => n + 1));
+        return () => {
+            setBriefingWindowOpen(false);
+            unsub();
+        };
+    }, []);
 
     return (
         <Modal
@@ -158,7 +108,7 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
                     <button
                         className={cl("send")}
                         disabled={busy || !items.length || !Native}
-                        onClick={() => void summarize()}
+                        onClick={() => void startBriefing()}
                         title={!Native ? t("notifNeedCli") : undefined}
                     >
                         {busy ? t("notifSummarizing") : t("notifSummarize")}
@@ -176,6 +126,9 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
                     {busy && !summary && (
                         <div className={cl("nc-empty")}>{t("notifSummarizing")}</div>
                     )}
+                    {busy && summary && (
+                        <div className={cl("nc-banner")}>{t("notifSummarizing")}</div>
+                    )}
                     {!busy && !summary && !error && (
                         <div className={cl("nc-empty")}>
                             {items.length
@@ -184,6 +137,9 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
                         </div>
                     )}
                     {error && !summary && <div className={cl("nc-empty")}>{error}</div>}
+                    {error && summary && (
+                        <div className={cl("nc-banner")}>{error}</div>
+                    )}
                     {summary && <BriefingText text={summary} onClose={rootProps.onClose} />}
                 </div>
             </div>
@@ -193,6 +149,7 @@ function NotificationCenterModal({ rootProps }: { rootProps: RenderModalProps; }
 
 export function openNotificationCenter() {
     try {
+        setOpenBriefingHandler(() => openNotificationCenter());
         openModal(props => <NotificationCenterModal rootProps={props} />);
     } catch {
         // ignore

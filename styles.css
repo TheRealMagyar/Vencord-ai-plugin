@@ -702,6 +702,16 @@ div:has(> .vc-grokai-root) {
     line-height: 1.5;
 }
 
+.vc-grokai-nc-banner {
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--brand-500, #5865f2) 14%, transparent);
+    color: var(--header-primary, var(--text-default, var(--text-normal)));
+    font-size: 13px;
+    font-weight: 600;
+}
+
 .vc-grokai-nc-summary {
     flex: 1 1 auto;
     min-height: 0;
