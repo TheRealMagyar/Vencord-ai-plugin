@@ -6,10 +6,10 @@
     gap: 10px;
     box-sizing: border-box;
     width: 100%;
-    height: min(64vh, 580px);
-    max-height: calc(100dvh - 168px);
+    height: min(62vh, 540px, calc(100dvh - 240px));
+    max-height: calc(100dvh - 240px);
     min-height: 0;
-    overflow: hidden;
+    overflow: hidden !important;
     overscroll-behavior: none;
 }
 
@@ -141,59 +141,65 @@
     gap: 10px;
 }
 
-div:has(> .vc-grokai-root) {
+div:has(> .vc-grokai-root),
+div:has(> .vc-grokai-nc),
+[class*="content"]:has(> .vc-grokai-root),
+[class*="content"]:has(> .vc-grokai-nc),
+[class*="scroller"]:has(.vc-grokai-root),
+[class*="scroller"]:has(.vc-grokai-nc) {
     overflow: hidden !important;
     overscroll-behavior: none;
+    scrollbar-width: none !important;
 }
 
-.vc-grokai-modal-scroller,
-.vc-grokai-modal-scroller [class*="scroller"],
-.vc-grokai-modal-scroller [class*="content"] {
-    overflow: hidden !important;
-    overscroll-behavior: none;
+[class*="scroller"]:has(.vc-grokai-root)::-webkit-scrollbar,
+[class*="scroller"]:has(.vc-grokai-nc)::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
 }
 
-.vc-grokai-root,
 .vc-grokai-messages,
 .vc-grokai-input,
+.vc-grokai-sidebar-list,
 .vc-grokai-nc-summary {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--interactive-normal, #b5bac1) 55%, transparent) transparent;
 }
 
-.vc-grokai-root::-webkit-scrollbar,
 .vc-grokai-messages::-webkit-scrollbar,
 .vc-grokai-input::-webkit-scrollbar,
+.vc-grokai-sidebar-list::-webkit-scrollbar,
 .vc-grokai-nc-summary::-webkit-scrollbar {
     width: 6px;
     height: 6px;
 }
 
-.vc-grokai-root::-webkit-scrollbar-track,
 .vc-grokai-messages::-webkit-scrollbar-track,
 .vc-grokai-input::-webkit-scrollbar-track,
+.vc-grokai-sidebar-list::-webkit-scrollbar-track,
 .vc-grokai-nc-summary::-webkit-scrollbar-track {
     background: transparent;
 }
 
-.vc-grokai-root::-webkit-scrollbar-thumb,
 .vc-grokai-messages::-webkit-scrollbar-thumb,
 .vc-grokai-input::-webkit-scrollbar-thumb,
+.vc-grokai-sidebar-list::-webkit-scrollbar-thumb,
 .vc-grokai-nc-summary::-webkit-scrollbar-thumb {
     background-color: color-mix(in srgb, var(--interactive-normal, #b5bac1) 45%, transparent);
     border-radius: 99px;
 }
 
-.vc-grokai-root::-webkit-scrollbar-thumb:hover,
 .vc-grokai-messages::-webkit-scrollbar-thumb:hover,
 .vc-grokai-input::-webkit-scrollbar-thumb:hover,
+.vc-grokai-sidebar-list::-webkit-scrollbar-thumb:hover,
 .vc-grokai-nc-summary::-webkit-scrollbar-thumb:hover {
     background-color: color-mix(in srgb, var(--interactive-hover, #dbdee1) 70%, transparent);
 }
 
-.vc-grokai-root::-webkit-scrollbar-corner,
 .vc-grokai-messages::-webkit-scrollbar-corner,
 .vc-grokai-input::-webkit-scrollbar-corner,
+.vc-grokai-sidebar-list::-webkit-scrollbar-corner,
 .vc-grokai-nc-summary::-webkit-scrollbar-corner {
     background: transparent;
 }
@@ -689,8 +695,10 @@ div:has(> .vc-grokai-root) {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    min-height: min(52vh, 480px);
-    max-height: min(64vh, 580px);
+    height: min(62vh, 540px, calc(100dvh - 240px));
+    max-height: calc(100dvh - 240px);
+    min-height: 0;
+    overflow: hidden;
 }
 
 .vc-grokai-nc-toolbar {
