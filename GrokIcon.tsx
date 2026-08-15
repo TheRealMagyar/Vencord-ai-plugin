@@ -116,4 +116,32 @@ export const FactCheckIcon: IconComponent = ({ height = 20, width = 20, classNam
     </svg>
 );
 
+export const DraftReplyIcon: IconComponent = ({ height = 20, width = 20, className, ...rest }) => (
+    <svg
+        viewBox="0 0 24 24"
+        height={height}
+        width={width}
+        className={classes(cl("icon"), className)}
+        aria-hidden="true"
+        fill="currentColor"
+        {...rest}
+    >
+        <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11Z" />
+    </svg>
+);
+
+export const SummarizeIcon: IconComponent = ({ height = 20, width = 20, className, ...rest }) => (
+    <svg
+        viewBox="0 0 24 24"
+        height={height}
+        width={width}
+        className={classes(cl("icon"), className)}
+        aria-hidden="true"
+        fill="currentColor"
+        {...rest}
+    >
+        <path d="M4 5h16v2H4V5Zm0 6h16v2H4v-2Zm0 6h10v2H4v-2Z" />
+    </svg>
+);
+
 export const AiIcon = GrokIcon;

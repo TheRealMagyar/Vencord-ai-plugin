@@ -21,7 +21,8 @@ import { ChannelStore, Menu, SelectedChannelStore, showToast, Toasts, useEffect,
 import { packChannelContext, withTranscript } from "./channelContext";
 import { getCachedStatus, refreshCliStatus, startCliStatusWatch, stopCliStatusWatch, subscribeCliStatus } from "./cliStatus";
 import { openGrokModal } from "./ChatModal";
-import { FactCheckIcon, GrokIcon } from "./GrokIcon";
+import { DraftReplyIcon, FactCheckIcon, GrokIcon, SummarizeIcon } from "./GrokIcon";
+import type { SummarizeRange } from "./types";
 import { renderNotificationCenterButton } from "./ServerListButton";
 import { settings } from "./settings";
 import type { GrokStatus, UpdateStatus } from "./types";
@@ -70,7 +71,7 @@ const channelCtxPatch: NavContextMenuPatchCallback = (children, props: { channel
     const channelId = channelIdFromMenu(props);
     if (!channelId) return;
 
-    const item = (
+    const open = (
         <Menu.MenuItem
             id="vc-grokai-open"
             label={t("openAi")}
@@ -78,24 +79,43 @@ const channelCtxPatch: NavContextMenuPatchCallback = (children, props: { channel
             action={() => openGrokModal({ channelId })}
         />
     );
+    const summarize = (range: SummarizeRange) => () => openGrokModal({ channelId, summarize: range });
+    const summary = (
+        <Menu.MenuItem
+            id="vc-grokai-summarize"
+            label={t("summarizeWithAi")}
+            icon={SummarizeIcon}
+        >
+            <Menu.MenuItem id="vc-grokai-summarize-hour" label={t("summarizeHour")} action={summarize("hour")} />
+            <Menu.MenuItem id="vc-grokai-summarize-today" label={t("summarizeToday")} action={summarize("today")} />
+            <Menu.MenuItem id="vc-grokai-summarize-week" label={t("summarizeWeek")} action={summarize("week")} />
+        </Menu.MenuItem>
+    );
 
     const group = findGroupChildrenByChildId("mark-channel-read", children)
         ?? findGroupChildrenByChildId("copy-channel-link", children)
         ?? findGroupChildrenByChildId("copy-link", children);
     if (group) {
-        group.push(item);
+        group.push(open, summary);
         return;
     }
-    children.push(<Menu.MenuGroup>{item}</Menu.MenuGroup>);
+    children.push(<Menu.MenuGroup>{open}{summary}</Menu.MenuGroup>);
 };
 
+function messageHasBody(message: Message) {
+    return Boolean(getMessageContent(message) || message.attachments?.length);
+}
+
 const messageCtxPatch: NavContextMenuPatchCallback = (children, { message }: { message: Message; }) => {
-    if (!getMessageContent(message)) return;
+    if (!messageHasBody(message)) return;
 
-    const group = findGroupChildrenByChildId("copy-text", children);
-    if (!group) return;
-
-    group.splice(group.findIndex(c => c?.props?.id === "copy-text") + 1, 0,
+    const items = [
+        <Menu.MenuItem
+            id="vc-grokai-draft"
+            label={t("draftReply")}
+            icon={DraftReplyIcon}
+            action={() => openGrokModal({ draftMessage: message, channelId: message.channel_id })}
+        />,
         <Menu.MenuItem
             id="vc-grokai-explain"
             label={t("explainWithAi")}
@@ -107,13 +127,22 @@ const messageCtxPatch: NavContextMenuPatchCallback = (children, { message }: { m
             label={t("factCheckWithAi")}
             icon={FactCheckIcon}
             action={() => openGrokModal({ factCheckMessage: message, channelId: message.channel_id })}
-        />
-    );
+        />,
+    ];
+
+    const group = findGroupChildrenByChildId("copy-text", children)
+        ?? findGroupChildrenByChildId("copy", children);
+    if (!group) {
+        children.push(<Menu.MenuGroup>{items}</Menu.MenuGroup>);
+        return;
+    }
+
+    const at = group.findIndex(c => c?.props?.id === "copy-text" || c?.props?.id === "copy");
+    group.splice(at < 0 ? group.length : at + 1, 0, ...items);
 };
 
 function factCheckPopover(message: Message) {
-    const content = getMessageContent(message);
-    if (!content) return null;
+    if (!getMessageContent(message)) return null;
 
     return {
         label: t("factCheckWithAi"),
@@ -121,6 +150,18 @@ function factCheckPopover(message: Message) {
         message,
         channel: ChannelStore.getChannel(message.channel_id),
         onClick: () => openGrokModal({ factCheckMessage: message, channelId: message.channel_id }),
+    };
+}
+
+function draftReplyPopover(message: Message) {
+    if (!messageHasBody(message)) return null;
+
+    return {
+        label: t("draftReply"),
+        icon: DraftReplyIcon,
+        message,
+        channel: ChannelStore.getChannel(message.channel_id),
+        onClick: () => openGrokModal({ draftMessage: message, channelId: message.channel_id }),
     };
 }
 
@@ -206,9 +247,9 @@ function SettingsAbout() {
 
 export default definePlugin({
     name: "AI-Plugin",
-    description: "Chat with your local Grok or Codex CLI from Discord. Explain and fact-check messages.",
+    description: "Chat with your local Grok or Codex CLI from Discord. Explain, fact-check, draft replies, and summarize channels.",
     authors: [{ name: "TheRealMagyar", id: 462651633709613056n }],
-    searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck", "notifications", "mentions"],
+    searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck", "draft", "summarize", "notifications", "mentions"],
     tags: ["Chat", "Utility"],
     dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI", "ServerListAPI"],
     settings,
@@ -217,6 +258,7 @@ export default definePlugin({
 
     async start() {
         addMessagePopoverButton("AI-Plugin-factcheck", factCheckPopover, FactCheckIcon);
+        addMessagePopoverButton("AI-Plugin-draft", draftReplyPopover, DraftReplyIcon);
         try {
             if (settings.store.showNotificationCenter)
                 addServerListElement(ServerListRenderPosition.Above, renderNotificationCenterButton);
@@ -238,6 +280,7 @@ export default definePlugin({
 
     stop() {
         removeMessagePopoverButton("AI-Plugin-factcheck");
+        removeMessagePopoverButton("AI-Plugin-draft");
         try {
             removeServerListElement(ServerListRenderPosition.Above, renderNotificationCenterButton);
         } catch {

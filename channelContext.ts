@@ -103,11 +103,16 @@ export async function collectChannelMessages(opts: {
     channelId: string;
     aroundId?: string;
     days?: number | null;
+    hours?: number | null;
     deep?: boolean;
     max?: number;
 }): Promise<TranscriptLine[]> {
     const max = opts.max ?? (opts.deep ? 250 : 50);
-    const since = opts.days ? Date.now() - opts.days * 86_400_000 : 0;
+    const since = opts.hours
+        ? Date.now() - opts.hours * 3_600_000
+        : opts.days
+            ? Date.now() - opts.days * 86_400_000
+            : 0;
     const seen = new Map<string, TranscriptLine>();
 
     for (const line of fromStore(opts.channelId)) seen.set(line.id, line);
@@ -166,18 +171,27 @@ export async function packChannelContext(opts: {
     highlightId?: string;
     enabled?: boolean;
     max?: number;
+    days?: number | null;
+    hours?: number | null;
+    deep?: boolean;
 }): Promise<PackedContext> {
     if (!opts.enabled || !opts.channelId) {
         return { transcript: "", count: 0, days: null, deep: false };
     }
 
-    const need = opts.aroundId ? { deep: true, days: null as number | null } : detectHistoryNeed(opts.prompt);
+    const explicitWindow = opts.hours != null || opts.days != null;
+    const need = explicitWindow
+        ? { deep: opts.deep ?? true, days: opts.days ?? null }
+        : opts.aroundId
+            ? { deep: true, days: null as number | null }
+            : detectHistoryNeed(opts.prompt);
     const lines = await collectChannelMessages({
         channelId: opts.channelId,
         aroundId: opts.aroundId,
         days: need.days,
-        deep: need.deep || Boolean(opts.aroundId),
-        max: opts.max ?? (opts.aroundId ? 80 : need.deep ? 250 : 45),
+        hours: opts.hours,
+        deep: need.deep || Boolean(opts.aroundId) || explicitWindow,
+        max: opts.max ?? (opts.aroundId ? 80 : need.deep || explicitWindow ? 250 : 45),
     });
 
     return {
@@ -188,14 +202,18 @@ export async function packChannelContext(opts: {
     };
 }
 
-export function withTranscript(userPrompt: string, packed: PackedContext, kind: "chat" | "explain" | "factcheck") {
+export function withTranscript(userPrompt: string, packed: PackedContext, kind: "chat" | "explain" | "factcheck" | "draft" | "summarize") {
     if (!packed.transcript) return userPrompt;
 
     const header = kind === "explain"
         ? "Below is nearby Discord chat history. The target message is marked with >>>. Use this context to explain it accurately. Do not invent messages."
         : kind === "factcheck"
             ? "Below is nearby Discord chat history. The target message is marked with >>>. Use this context to understand the claim, then fact-check it. Do not invent messages."
-            : "Below is Discord chat history from the current channel/DM. Use it as ground truth when the user asks about this conversation. Do not invent messages that are not listed.";
+            : kind === "draft"
+                ? "Below is nearby Discord chat history. The target message is marked with >>>. Draft a reply the user can send. Match tone and language. Output only the reply text — no quotes, no preamble."
+                : kind === "summarize"
+                    ? "Below is Discord chat history from this channel/DM. Summarize what happened. Do not invent messages."
+                    : "Below is Discord chat history from the current channel/DM. Use it as ground truth when the user asks about this conversation. Do not invent messages that are not listed.";
 
     return [
         header,

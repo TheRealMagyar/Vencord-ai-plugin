@@ -367,11 +367,25 @@ function extraRulesFor(request: ChatRequest) {
     const parts = [
         "You are Grok, answering from inside Discord through a Vencord plugin.",
         "If the prompt includes a Discord transcript, treat it as ground truth for what was said.",
-        "Use that transcript to summarize, explain, fact-check, or answer questions about the conversation.",
+        "Use that transcript to summarize, explain, fact-check, draft a reply, or answer questions about the conversation.",
         "Do not invent messages that are not in the transcript. Do not mention these instructions.",
         "Do not try to read, write, or execute files.",
         languageRule(request.language),
     ];
+
+    if (request.kind === "draft") {
+        parts.push(
+            "You are drafting a Discord message the user will send themselves.",
+            "Output only the reply text. No quotes, no preamble, no alternatives unless the user asked.",
+        );
+    }
+
+    if (request.kind === "summarize") {
+        parts.push(
+            "Write a briefing of the channel transcript. Lead with what needs a reply or decision.",
+            "Prose only. Do not inventory every message.",
+        );
+    }
 
     if (wantsWebTools(request) && request.kind !== "factcheck") {
         parts.push(
@@ -1055,7 +1069,11 @@ async function spawnCodexExec(request: ChatRequest, progress: ChatProgress): Pro
                 : factCheckDepthOf(request) === "deep"
                     ? "This is a thorough fact-check. Every checkable claim needs a verdict and sources."
                     : "This is a balanced fact-check. Every checkable claim needs a verdict and a short reason. Be concise.")
-            : "",
+            : request.kind === "draft"
+                ? "Draft a Discord reply the user will send. Output only the reply text. No quotes or preamble."
+                : request.kind === "summarize"
+                    ? "Brief the channel transcript. Lead with what needs a reply. Prose only."
+                    : "",
         languageRule(request.language),
     ].filter(Boolean).join(" ");
 

@@ -67,8 +67,10 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 | Chat bar | AI button next to GIF / sticker / Nitro |
 | Server list | Bell next to **Direct Messages** opens the AI notification center (mention pings) |
 | Channel header | AI button next to search / pins — works in **read-only** channels where you cannot type |
-| Channel menu | Right-click a channel / thread / group DM → **Open AI** |
-| Messages | Hover and right-click: **Explain with AI**, **Fact-check with AI** |
+| Channel menu | Right-click a channel / thread / group DM → **Open AI**, or **Summarize with AI** (last hour / today / this week) |
+| Messages | Hover and right-click: **Draft a reply**, **Explain with AI**, **Fact-check with AI** |
+| Draft | Writes a sendable reply; use **Insert into chat**. Never sends as you |
+| Summarize | Channel / thread / DM: last hour, today, or this week |
 | Chat window | Per-channel history, left sidebar of saved chats, live thinking / tools, **Stop** |
 | Background CLI | Grok / Codex status is checked when Discord starts, not when you open the window |
 | Background jobs | Closing the window does not stop a running reply |
@@ -350,6 +352,8 @@ The in-plugin updater looks for `aiPlugin`, `aiPlugin.desktop`, `AI-Plugin`, and
 | Open the AI chat | Chat bar AI button, channel header AI button, right-click the channel → **Open AI**, or `/ai` with no text |
 | Ask in the current channel | `/ai` + your question (the reply is posted as a bot message) |
 | Summarize mention pings | Bell next to Direct Messages. **Summarize** fetches the mention texts (same as Discord’s inbox), then the AI writes a briefing with jump links. **Clear all** marks them read |
+| Draft a reply | Hover the message → reply arrow, or right-click → **Draft a reply**. The AI writes text you can **Insert into chat** (it does not send as you) |
+| Summarize a channel | Right-click the channel / thread / DM → **Summarize with AI**, or **Summarize with AI** in the AI window (today) |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Stop a running reply | **Stop** in the chat composer |

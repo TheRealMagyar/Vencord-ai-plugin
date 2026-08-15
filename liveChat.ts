@@ -8,10 +8,10 @@ import { showNotification } from "@api/Notifications";
 import { showToast, Toasts } from "@webpack/common";
 
 import { loadThread, persistableMessages, saveThread } from "./history";
-import type { AiProvider, ChatMessage, ChatToolStep, GrokReply } from "./types";
+import type { AiJobKind, AiProvider, ChatMessage, ChatToolStep, GrokReply } from "./types";
 import { getNative, t } from "./utils";
 
-export type LiveJobKind = "chat" | "explain" | "factcheck";
+export type LiveJobKind = AiJobKind;
 
 export interface LiveJob {
     jobId: string;
@@ -56,7 +56,11 @@ function notifyJobDone(job: LiveJob, ok: boolean) {
             ? t("notifyExplainReady", { title })
             : job.kind === "factcheck"
                 ? t("notifyFactCheckReady", { title })
-                : t("notifyChatReady", { provider, title });
+                : job.kind === "draft"
+                    ? t("notifyDraftReady", { title })
+                    : job.kind === "summarize"
+                        ? t("notifySummarizeReady", { title })
+                        : t("notifyChatReady", { provider, title });
 
     showToast(message, ok ? Toasts.Type.SUCCESS : Toasts.Type.FAILURE);
     try {

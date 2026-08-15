@@ -14,7 +14,7 @@ import { GrokIcon } from "./GrokIcon";
 import { clearThread, getThreadTitle, listThreads, loadThread } from "./history";
 import { cancelLiveJob, getLiveJob, interruptLiveJob, isChannelBusy, listLiveJobs, mergeLiveMessages, runLiveChat, setChatWindowOpen, setOpenChatHandler, subscribeAllJobs, subscribeLiveJob } from "./liveChat";
 import { settings } from "./settings";
-import type { ChatMessage, ChatToolStep, GrokStatus, StoredThread } from "./types";
+import type { AiJobKind, ChatMessage, ChatToolStep, GrokStatus, StoredThread, SummarizeRange } from "./types";
 import { resolveLang } from "./i18n";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
@@ -22,10 +22,31 @@ interface OpenOptions {
     seedPrompt?: string;
     explainMessage?: Message;
     factCheckMessage?: Message;
+    draftMessage?: Message;
+    summarize?: SummarizeRange;
     channelId?: string;
 }
 
-type MessageActionKind = "explain" | "factcheck";
+type MessageActionKind = "explain" | "factcheck" | "draft";
+
+function summarizeWindow(range: SummarizeRange) {
+    if (range === "hour") return { hours: 1, days: null as number | null, max: 80 };
+    if (range === "week") return { hours: null as number | null, days: 7, max: 220 };
+    return { hours: null as number | null, days: 1, max: 150 };
+}
+
+function summarizeRangeKey(range: SummarizeRange) {
+    if (range === "hour") return "summarizeHour" as const;
+    if (range === "week") return "summarizeWeek" as const;
+    return "summarizeToday" as const;
+}
+
+function messageBodyForAi(message: Message) {
+    const text = getMessageContent(message);
+    if (text) return text;
+    const files = message.attachments?.map(file => `[file: ${file.filename}]`).filter(Boolean) ?? [];
+    return files.join(" ") || "(no text)";
+}
 
 const markdownCache = new Map<string, any>();
 
@@ -66,6 +87,7 @@ function resolveChannelId(options?: OpenOptions) {
     return options?.channelId
         || options?.explainMessage?.channel_id
         || options?.factCheckMessage?.channel_id
+        || options?.draftMessage?.channel_id
         || SelectedChannelStore.getChannelId()
         || "";
 }
@@ -73,6 +95,7 @@ function resolveChannelId(options?: OpenOptions) {
 function resolveMessageAction(options?: OpenOptions): { kind: MessageActionKind; message: Message; } | null {
     if (options?.explainMessage) return { kind: "explain", message: options.explainMessage };
     if (options?.factCheckMessage) return { kind: "factcheck", message: options.factCheckMessage };
+    if (options?.draftMessage) return { kind: "draft", message: options.draftMessage };
     return null;
 }
 
@@ -161,20 +184,26 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
             if (action) {
                 if (!Native) return;
                 const { kind, message } = action;
-                const content = getMessageContent(message);
+                const content = messageBodyForAi(message);
                 const author = message.author?.username;
                 const channel = ChannelStore.getChannel(message.channel_id);
-                const visibleKey = kind === "explain" ? "explainVisible" : "factCheckVisible";
+                const visibleKey = kind === "explain"
+                    ? "explainVisible"
+                    : kind === "draft"
+                        ? "draftVisible"
+                        : "factCheckVisible";
                 const promptKey = kind === "explain"
                     ? "explainPrompt"
-                    : factCheckDepth === "quick"
-                        ? "factCheckPromptQuick"
-                        : factCheckDepth === "deep"
-                            ? "factCheckPromptDeep"
-                            : "factCheckPrompt";
+                    : kind === "draft"
+                        ? "draftPrompt"
+                        : factCheckDepth === "quick"
+                            ? "factCheckPromptQuick"
+                            : factCheckDepth === "deep"
+                                ? "factCheckPromptDeep"
+                                : "factCheckPrompt";
                 const contextMax = kind === "factcheck"
                     ? (factCheckDepth === "quick" ? 16 : factCheckDepth === "deep" ? 80 : 32)
-                    : undefined;
+                    : kind === "draft" ? 40 : undefined;
                 await ask({
                     kind,
                     visible: t(visibleKey, {
@@ -187,7 +216,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             prompt: content,
                             aroundId: message.id,
                             highlightId: message.id,
-                            enabled: includeChannelContext,
+                            enabled: includeChannelContext || kind === "draft",
                             max: contextMax,
                         });
                         const userPrompt = t(promptKey, {
@@ -200,7 +229,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             sessionId: null,
                             model: selectedModel,
                             language: lang,
-                            allowWebSearch: kind === "factcheck" || allowWebSearch,
+                            allowWebSearch: kind === "factcheck",
                             grokPath: grokPath || undefined,
                             provider: activeProvider,
                             codexPath: codexPath || undefined,
@@ -211,6 +240,12 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     },
                     context: { channelId: id, title },
                 });
+                return;
+            }
+
+            if (options?.summarize) {
+                if (!Native || isChannelBusy(id)) return;
+                await runSummarize(options.summarize, { channelId: id, title });
                 return;
             }
 
@@ -267,8 +302,50 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
         });
     }, [channelId]);
 
+    async function runSummarize(range: SummarizeRange, ctx?: { channelId: string; title: string; }) {
+        const id = ctx?.channelId || channelId;
+        const title = ctx?.title || threadTitle;
+        if (!Native || !id || isChannelBusy(id)) return;
+        const win = summarizeWindow(range);
+        const rangeLabel = t(summarizeRangeKey(range));
+        await ask({
+            kind: "summarize",
+            visible: t("summarizeVisible", { range: rangeLabel, title }),
+            request: async jobId => {
+                const packed = await packChannelContext({
+                    channelId: id,
+                    prompt: "summarize",
+                    enabled: true,
+                    hours: win.hours,
+                    days: win.days,
+                    deep: true,
+                    max: win.max,
+                });
+                if (!packed.transcript)
+                    return { ok: false, text: "", sessionId: null, error: t("summarizeEmpty") };
+                return Native.sendChat({
+                    prompt: withTranscript(
+                        t("summarizePrompt", { range: rangeLabel, channel: title, count: packed.count }),
+                        packed,
+                        "summarize",
+                    ),
+                    sessionId: null,
+                    model: selectedModel,
+                    language: lang,
+                    allowWebSearch: false,
+                    grokPath: grokPath || undefined,
+                    provider: activeProvider,
+                    codexPath: codexPath || undefined,
+                    kind: "summarize",
+                    jobId,
+                });
+            },
+            context: { channelId: id, title },
+        });
+    }
+
     async function ask(opts: {
-        kind: "chat" | "explain" | "factcheck";
+        kind: AiJobKind;
         visible: string;
         request: (jobId: string) => Promise<{
             ok: boolean;
@@ -464,6 +541,13 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             }}
                         >
                             {t("notifCenter")}
+                        </button>
+                        <button
+                            className={cl("mini")}
+                            disabled={busy || !channelId}
+                            onClick={() => void runSummarize("today")}
+                        >
+                            {t("summarizeWithAi")}
                         </button>
                         <button
                             className={cl("mini", { on: showThinking })}
