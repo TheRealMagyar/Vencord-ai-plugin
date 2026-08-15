@@ -327,6 +327,12 @@ const dict = {
         de: "Keine Nachrichten in diesem Zeitraum (oder noch nicht im Cache). Kanal öffnen und erneut versuchen.",
         es: "No hay mensajes en ese periodo (o aún no están en caché). Abre el canal e inténtalo de nuevo.",
     },
+    summarizeFallback: {
+        en: "There were no messages in the requested period. Summarize the most recent messages instead, and say they are older than the requested window.",
+        hu: "A kért időszakban nincs üzenet. Foglald össze a legutóbbi üzeneteket, és írd le, hogy régebbiek, mint a kért ablak.",
+        de: "Im gewünschten Zeitraum gab es keine Nachrichten. Fasse stattdessen die neuesten Nachrichten zusammen und sag, dass sie älter sind.",
+        es: "No hubo mensajes en el periodo pedido. Resume los más recientes y di que son anteriores a esa ventana.",
+    },
     notifySummarizeReady: {
         en: "Channel summary ready · {title}",
         hu: "Csatorna-összefoglaló kész · {title}",

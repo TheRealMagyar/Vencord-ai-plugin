@@ -323,9 +323,12 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 });
                 if (!packed.transcript)
                     return { ok: false, text: "", sessionId: null, error: t("summarizeEmpty") };
+                const requestText = packed.fallback
+                    ? `${t("summarizePrompt", { range: rangeLabel, channel: title, count: packed.count })}\n${t("summarizeFallback")}`
+                    : t("summarizePrompt", { range: rangeLabel, channel: title, count: packed.count });
                 return Native.sendChat({
                     prompt: withTranscript(
-                        t("summarizePrompt", { range: rangeLabel, channel: title, count: packed.count }),
+                        requestText,
                         packed,
                         "summarize",
                     ),

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { MessageStore, RestAPI } from "@webpack/common";
+import { ChannelStore, MessageStore, RestAPI } from "@webpack/common";
 
 export interface TranscriptLine {
     id: string;
@@ -18,6 +18,7 @@ export interface PackedContext {
     count: number;
     days: number | null;
     deep: boolean;
+    fallback?: boolean;
 }
 
 const MAX_CHARS = 70_000;
@@ -72,7 +73,9 @@ function toLine(raw: any): TranscriptLine | null {
 function fromStore(channelId: string) {
     try {
         const bucket = MessageStore.getMessages(channelId) as any;
-        const arr: any[] = bucket?._array ?? bucket?.toArray?.() ?? [];
+        const arr: any[] = bucket?._array
+            ?? bucket?.toArray?.()
+            ?? (bucket?._map ? Object.values(bucket._map) : []);
         return arr.map(toLine).filter((line): line is TranscriptLine => Boolean(line));
     } catch {
         return [];
@@ -85,7 +88,10 @@ async function fetchPage(channelId: string, query: Record<string, string | numbe
         query,
         retries: 1,
     });
-    return (res?.body ?? []) as any[];
+    const body = res?.body;
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body?.messages)) return body.messages;
+    return [];
 }
 
 export function detectHistoryNeed(prompt: string) {
@@ -106,7 +112,7 @@ export async function collectChannelMessages(opts: {
     hours?: number | null;
     deep?: boolean;
     max?: number;
-}): Promise<TranscriptLine[]> {
+}): Promise<{ lines: TranscriptLine[]; fallback: boolean; }> {
     const max = opts.max ?? (opts.deep ? 250 : 50);
     const since = opts.hours
         ? Date.now() - opts.hours * 3_600_000
@@ -119,6 +125,15 @@ export async function collectChannelMessages(opts: {
 
     let before: string | undefined;
     let around = opts.aroundId;
+    if (!around && !before) {
+        try {
+            around = ChannelStore.getChannel(opts.channelId)?.lastMessageId
+                || MessageStore.getLastMessage(opts.channelId)?.id
+                || undefined;
+        } catch {
+            around = undefined;
+        }
+    }
     let pages = 0;
     const pageLimit = opts.deep ? 10 : 2;
 
@@ -147,10 +162,11 @@ export async function collectChannelMessages(opts: {
         // store cache is still usable
     }
 
-    return [...seen.values()]
-        .filter(line => !since || line.timestamp >= since)
-        .sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id))
-        .slice(-max);
+    const all = [...seen.values()].sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id));
+    const inWindow = since ? all.filter(line => line.timestamp >= since) : all;
+    if (inWindow.length)
+        return { lines: inWindow.slice(-max), fallback: false };
+    return { lines: all.slice(-Math.min(max, 80)), fallback: all.length > 0 };
 }
 
 export function formatTranscript(lines: TranscriptLine[], highlightId?: string) {
@@ -176,7 +192,7 @@ export async function packChannelContext(opts: {
     deep?: boolean;
 }): Promise<PackedContext> {
     if (!opts.enabled || !opts.channelId) {
-        return { transcript: "", count: 0, days: null, deep: false };
+        return { transcript: "", count: 0, days: null, deep: false, fallback: false };
     }
 
     const explicitWindow = opts.hours != null || opts.days != null;
@@ -185,7 +201,7 @@ export async function packChannelContext(opts: {
         : opts.aroundId
             ? { deep: true, days: null as number | null }
             : detectHistoryNeed(opts.prompt);
-    const lines = await collectChannelMessages({
+    const { lines, fallback } = await collectChannelMessages({
         channelId: opts.channelId,
         aroundId: opts.aroundId,
         days: need.days,
@@ -199,6 +215,7 @@ export async function packChannelContext(opts: {
         count: lines.length,
         days: need.days,
         deep: need.deep || Boolean(opts.aroundId),
+        fallback,
     };
 }
 

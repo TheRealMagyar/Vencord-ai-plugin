@@ -63,9 +63,28 @@ const ChannelHeaderAiButton = ErrorBoundary.wrap(function ChannelHeaderAiButton(
     );
 }, { noop: true });
 
-function channelIdFromMenu(props: { channel?: Channel; channelId?: string; }) {
-    return props.channel?.id || props.channelId || "";
+function channelIdFromMenu(props: { channel?: Channel; channelId?: string; user?: { id: string; }; }) {
+    if (props.channel?.id) return props.channel.id;
+    if (props.channelId) return props.channelId;
+    return "";
 }
+
+function dmIdFromUser(props: { user?: { id: string; }; channel?: Channel; }) {
+    try {
+        if (props.user?.id)
+            return ChannelStore.getDMFromUserId(props.user.id) || "";
+    } catch {
+        // ignore
+    }
+    if (props.channel?.isDM?.()) return props.channel.id;
+    return "";
+}
+
+const userCtxPatch: NavContextMenuPatchCallback = (children, props: { user?: { id: string; }; channel?: Channel; }) => {
+    const channelId = dmIdFromUser(props);
+    if (!channelId) return;
+    channelCtxPatch(children, { channelId, channel: props.channel });
+};
 
 const channelCtxPatch: NavContextMenuPatchCallback = (children, props: { channel?: Channel; channelId?: string; }) => {
     const channelId = channelIdFromMenu(props);
@@ -298,6 +317,7 @@ export default definePlugin({
         "channel-context": channelCtxPatch,
         "thread-context": channelCtxPatch,
         "gdm-context": channelCtxPatch,
+        "user-context": userCtxPatch,
     },
 
     chatBarButton: {
