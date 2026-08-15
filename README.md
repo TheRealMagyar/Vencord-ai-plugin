@@ -90,7 +90,7 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 
 ## Screenshots
 
-Put new PNGs in [`docs/screenshots/`](docs/screenshots/README.md). Same size as the existing shots (Discord UI, dark theme, no personal tokens).
+Files live in [`docs/screenshots/`](docs/screenshots/README.md).
 
 ### Chat bar
 
@@ -104,33 +104,29 @@ Sidebar of saved chats, per-channel history, thinking / tools, Stop.
 
 ![AI chat window](docs/screenshots/chat-window.png)
 
+### Draft a reply
+
+Hover or right-click a message → **Draft a reply**, then **Insert into chat**. The plugin does not send as you.
+
+![Draft a reply](docs/screenshots/draft-reply.gif)
+
 ### Explain / Fact-check with AI
 
 Message hover and context menu.
 
 ![Explain with AI](docs/screenshots/explain.png)
 
+### AI notifications
+
+Bell next to Direct Messages. Briefing of mention pings, jump links, **Clear all**.
+
+![AI notifications](docs/screenshots/notifications.gif)
+
 ### Settings
 
 Provider, model, language, icon, fact-check depth, paths, updates.
 
 ![Plugin settings](docs/screenshots/settings.png)
-
-### Server list (add `server-list.png`)
-
-Bell under **Direct Messages** — AI notification center.
-
-### Draft a reply (add `draft-reply.png`)
-
-Hover reply arrow or right-click → **Draft a reply**, then **Insert into chat**.
-
-### Channel summarize (add `summarize.png`)
-
-Right-click a channel / thread / DM → **Summarize with AI** (last hour / today / this week).
-
-### AI notifications (add `notifications.png`)
-
-Notification center: briefing, jump links, **Clear all**.
 
 ---
 
