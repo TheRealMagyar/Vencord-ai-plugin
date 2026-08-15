@@ -107,6 +107,12 @@ export const settings = definePluginSettings({
         default: "",
         placeholder: String.raw`C:\Users\You\AppData\Local\OpenAI\Codex\bin\...\codex.exe`,
     },
+    showNotificationCenter: {
+        type: OptionType.BOOLEAN,
+        description: "Show the AI notification center button under Direct Messages in the server list (restart required)",
+        default: true,
+        restartNeeded: true,
+    },
     autoUpdate: {
         type: OptionType.BOOLEAN,
         description: "On Discord startup, check GitHub and install AI-Plugin updates (restart required after)",

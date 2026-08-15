@@ -9,6 +9,7 @@ import "./styles.css";
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { addMessagePopoverButton, removeMessagePopoverButton } from "@api/MessagePopover";
+import { addServerListElement, removeServerListElement, ServerListRenderPosition } from "@api/ServerList";
 import { migratePluginSetting, migratePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
@@ -21,6 +22,7 @@ import { packChannelContext, withTranscript } from "./channelContext";
 import { getCachedStatus, refreshCliStatus, startCliStatusWatch, stopCliStatusWatch, subscribeCliStatus } from "./cliStatus";
 import { openGrokModal } from "./ChatModal";
 import { FactCheckIcon, GrokIcon } from "./GrokIcon";
+import { renderNotificationCenterButton } from "./ServerListButton";
 import { settings } from "./settings";
 import type { GrokStatus, UpdateStatus } from "./types";
 import { cl, getMessageContent, getNative, t } from "./utils";
@@ -204,17 +206,19 @@ function SettingsAbout() {
 
 export default definePlugin({
     name: "AI-Plugin",
-    description: "Chat with your local Grok or Codex CLI from Discord. Explain and fact-check messages.",
+    description: "Chat with your local Grok or Codex CLI from Discord. Explain, fact-check, and summarize mention pings.",
     authors: [{ name: "TheRealMagyar", id: 462651633709613056n }],
-    searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck"],
+    searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck", "notifications", "inbox", "mentions"],
     tags: ["Chat", "Utility"],
-    dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI"],
+    dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI", "ServerListAPI"],
     settings,
     settingsAboutComponent: SettingsAbout,
     requiresRestart: true,
 
     async start() {
         addMessagePopoverButton("AI-Plugin-factcheck", factCheckPopover, FactCheckIcon);
+        if (settings.store.showNotificationCenter)
+            addServerListElement(ServerListRenderPosition.In, renderNotificationCenterButton);
         startCliStatusWatch();
         if (!settings.store.autoUpdate) return;
         const Native = getNative();
@@ -230,6 +234,7 @@ export default definePlugin({
 
     stop() {
         removeMessagePopoverButton("AI-Plugin-factcheck");
+        removeServerListElement(ServerListRenderPosition.In, renderNotificationCenterButton);
         stopCliStatusWatch();
     },
 
