@@ -65,6 +65,7 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 | Area | What you get |
 | --- | --- |
 | Chat bar | AI button next to GIF / sticker / Nitro |
+| Server list | Bell next to **Direct Messages** opens the AI notification center (mention pings) |
 | Channel header | AI button next to search / pins — works in **read-only** channels where you cannot type |
 | Channel menu | Right-click a channel / thread / group DM → **Open AI** |
 | Messages | Hover and right-click: **Explain with AI**, **Fact-check with AI** |
@@ -256,6 +257,7 @@ Also enable these API plugins if they appear separately:
 - Message Popover API
 - Commands API
 - Header Bar API
+- Server List API
 
 `HeaderBarAPI` is the channel-header AI button (read-only channels).
 
@@ -347,6 +349,7 @@ The in-plugin updater looks for `aiPlugin`, `aiPlugin.desktop`, `AI-Plugin`, and
 | --- | --- |
 | Open the AI chat | Chat bar AI button, channel header AI button, right-click the channel → **Open AI**, or `/ai` with no text |
 | Ask in the current channel | `/ai` + your question (the reply is posted as a bot message) |
+| Summarize mention pings | Bell next to Direct Messages, or **AI notifications** in the chat toolbar. × marks a ping read |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Stop a running reply | **Stop** in the chat composer |

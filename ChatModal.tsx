@@ -445,6 +445,18 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                     </span>
                     <div className={cl("toolbar-actions")}>
                         <button
+                            className={cl("mini")}
+                            onClick={() => {
+                                try {
+                                    (require("./NotificationCenter") as typeof import("./NotificationCenter")).openNotificationCenter();
+                                } catch {
+                                    // ignore
+                                }
+                            }}
+                        >
+                            {t("notifCenter")}
+                        </button>
+                        <button
                             className={cl("mini", { on: showThinking })}
                             onClick={() => { settings.store.showThinking = !showThinking; }}
                         >
