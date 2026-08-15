@@ -363,6 +363,18 @@ const dict = {
         de: "Keine Erwähnungen gerade.",
         es: "No hay menciones ahora.",
     },
+    notifIdle: {
+        en: "Click Summarize with AI to write a briefing of your mention pings.",
+        hu: "Nyomj az Összesítés AI-val gombra, ha kéred a briefinget.",
+        de: "Klicke auf Mit KI zusammenfassen, um das Briefing zu schreiben.",
+        es: "Pulsa Resumir con IA para escribir el resumen.",
+    },
+    notifOpen: {
+        en: "Open",
+        hu: "Megnyitás",
+        de: "Öffnen",
+        es: "Abrir",
+    },
     notifSummarize: {
         en: "Summarize with AI",
         hu: "Összesítés AI-val",

@@ -739,12 +739,19 @@ div:has(> .vc-grokai-root) {
     font-weight: 700;
 }
 
-.vc-grokai-nc-prose a {
+.vc-grokai-nc-link {
+    display: inline;
+    margin: 0 1px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--text-link, #00a8fc) 50%, transparent);
+    background: transparent;
     color: var(--text-link, #00a8fc);
-    text-decoration: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--text-link, #00a8fc) 45%, transparent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
 }
 
-.vc-grokai-nc-prose a:hover {
+.vc-grokai-nc-link:hover {
     border-bottom-color: var(--text-link, #00a8fc);
 }
