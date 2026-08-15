@@ -5,12 +5,9 @@
  */
 
 import ErrorBoundary from "@components/ErrorBoundary";
-import { findComponentByCodeLazy } from "@webpack";
 import { Tooltip } from "@webpack/common";
 
-import { cl, t } from "./utils";
-
-const GuildlessServerListItem = findComponentByCodeLazy("tooltip:", "lowerBadgeSize:");
+import { cl } from "./utils";
 
 function openCenter() {
     try {
@@ -21,24 +18,16 @@ function openCenter() {
     }
 }
 
-function BellIcon({ size = 24 }: { size?: number; }) {
+function NotificationCenterButton() {
     return (
-        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" fill="currentColor">
-            <path d="M12 2a6 6 0 0 0-6 6v2.3c0 .6-.2 1.2-.6 1.7L3.8 14.8A1.5 1.5 0 0 0 5 17.2h14a1.5 1.5 0 0 0 1.2-2.4l-1.6-2.8c-.4-.5-.6-1.1-.6-1.7V8a6 6 0 0 0-6-6Zm0 20a3 3 0 0 0 2.8-2H9.2A3 3 0 0 0 12 22Z" />
-        </svg>
-    );
-}
-
-function FallbackButton() {
-    return (
-        <div className={cl("sl-fallback")}>
-            <Tooltip text={t("notifCenter")} position="right">
+        <div className={cl("sl")}>
+            <Tooltip text="AI notifications" position="right">
                 {({ onMouseEnter, onMouseLeave }) => (
                     <div
                         className={cl("sl-btn")}
                         role="button"
                         tabIndex={0}
-                        aria-label={t("notifCenter")}
+                        aria-label="AI notifications"
                         onMouseEnter={onMouseEnter}
                         onMouseLeave={onMouseLeave}
                         onClick={openCenter}
@@ -49,7 +38,9 @@ function FallbackButton() {
                             }
                         }}
                     >
-                        <BellIcon />
+                        <svg viewBox="0 0 24 24" width={24} height={24} aria-hidden="true" fill="currentColor">
+                            <path d="M12 2a6 6 0 0 0-6 6v2.3c0 .6-.2 1.2-.6 1.7L3.8 14.8A1.5 1.5 0 0 0 5 17.2h14a1.5 1.5 0 0 0 1.2-2.4l-1.6-2.8c-.4-.5-.6-1.1-.6-1.7V8a6 6 0 0 0-6-6Zm0 20a3 3 0 0 0 2.8-2H9.2A3 3 0 0 0 12 22Z" />
+                        </svg>
                     </div>
                 )}
             </Tooltip>
@@ -57,28 +48,10 @@ function FallbackButton() {
     );
 }
 
-function NativeButton() {
-    return (
-        <div className={cl("sl")}>
-            <GuildlessServerListItem
-                icon={() => (
-                    <div className={cl("sl-icon")}>
-                        <BellIcon />
-                    </div>
-                )}
-                tooltip={t("notifCenter")}
-                showPill={false}
-                selected={false}
-                onClick={openCenter}
-            />
-        </div>
-    );
-}
-
 export function renderNotificationCenterButton() {
     return (
-        <ErrorBoundary fallback={FallbackButton}>
-            <NativeButton />
+        <ErrorBoundary noop>
+            <NotificationCenterButton />
         </ErrorBoundary>
     );
 }
