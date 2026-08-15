@@ -65,7 +65,6 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 | Area | What you get |
 | --- | --- |
 | Chat bar | AI button next to GIF / sticker / Nitro |
-| Notifications | In the AI chat toolbar: **AI notifications** — summarize mention pings, clear them |
 | Channel header | AI button next to search / pins — works in **read-only** channels where you cannot type |
 | Channel menu | Right-click a channel / thread / group DM → **Open AI** |
 | Messages | Hover and right-click: **Explain with AI**, **Fact-check with AI** |
@@ -348,7 +347,6 @@ The in-plugin updater looks for `aiPlugin`, `aiPlugin.desktop`, `AI-Plugin`, and
 | --- | --- |
 | Open the AI chat | Chat bar AI button, channel header AI button, right-click the channel → **Open AI**, or `/ai` with no text |
 | Ask in the current channel | `/ai` + your question (the reply is posted as a bot message) |
-| Summarize mention pings | Open the AI chat → **AI notifications** → **Summarize with AI**. × clears a ping (marks it read) |
 | Explain a message | Hover the message → AI icon, or right-click → **Explain with AI** |
 | Fact-check a message | Hover the message → shield icon, or right-click → **Fact-check with AI** |
 | Stop a running reply | **Stop** in the chat composer |
@@ -407,7 +405,6 @@ If **Include channel context** is on, nearby messages are attached (the target i
 | Allow web search | Grok only, for **normal chat** (fact-check has its own search) |
 | Show thinking | Live thinking + tool use (Grok and Codex) |
 | Fact-check depth | Quick, Balanced (default), or Deep |
-| Notification center | Button in the AI chat toolbar |
 | Include channel context | Attach Discord history for summaries, explain, and fact-check |
 | Grok / Codex path | Optional override if auto-detect fails |
 | Auto update | Pull from GitHub when Discord starts |

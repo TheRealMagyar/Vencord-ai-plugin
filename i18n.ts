@@ -345,66 +345,6 @@ const dict = {
         de: "Die KI denkt nach…",
         es: "La IA está pensando…",
     },
-    notifCenter: {
-        en: "AI notifications",
-        hu: "AI értesítések",
-        de: "KI-Benachrichtigungen",
-        es: "Notificaciones de IA",
-    },
-    notifCount: {
-        en: "{count} mention(s)",
-        hu: "{count} említés",
-        de: "{count} Erwähnung(en)",
-        es: "{count} mención(es)",
-    },
-    notifEmpty: {
-        en: "No mention pings right now.",
-        hu: "Most nincs ping.",
-        de: "Keine Erwähnungen gerade.",
-        es: "No hay menciones ahora.",
-    },
-    notifSummarize: {
-        en: "Summarize with AI",
-        hu: "Összesítés AI-val",
-        de: "Mit KI zusammenfassen",
-        es: "Resumir con IA",
-    },
-    notifSummarizing: {
-        en: "Summarizing…",
-        hu: "Összesítés…",
-        de: "Zusammenfassen…",
-        es: "Resumiendo…",
-    },
-    notifSummary: {
-        en: "AI summary",
-        hu: "AI összefoglaló",
-        de: "KI-Zusammenfassung",
-        es: "Resumen de IA",
-    },
-    notifDelete: {
-        en: "Clear this ping",
-        hu: "Ping törlése",
-        de: "Ping löschen",
-        es: "Borrar este ping",
-    },
-    notifDeleteAll: {
-        en: "Clear all",
-        hu: "Mind törlése",
-        de: "Alle löschen",
-        es: "Borrar todo",
-    },
-    notifDm: {
-        en: "Direct message",
-        hu: "Privát üzenet",
-        de: "Direktnachricht",
-        es: "Mensaje directo",
-    },
-    notifNeedCli: {
-        en: "Connect Grok or Codex in settings first.",
-        hu: "Előbb csatlakoztasd a Grok vagy Codex CLI-t a beállításokban.",
-        de: "Verbinde zuerst Grok oder Codex in den Einstellungen.",
-        es: "Conecta primero Grok o Codex en ajustes.",
-    },
 } as const;
 
 export type I18nKey = keyof typeof dict;
