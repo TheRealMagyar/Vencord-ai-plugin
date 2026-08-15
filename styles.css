@@ -651,7 +651,7 @@ div:has(> .vc-grokai-root) {
 }
 
 .vc-grokai-sl {
-    width: 100%;
+    width: 72px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -664,7 +664,7 @@ div:has(> .vc-grokai-root) {
     height: 48px;
     padding: 0;
     border: 0;
-    border-radius: 50%;
+    border-radius: 15px;
     background: var(--background-primary, var(--background-tertiary, #2b2d31));
     color: var(--interactive-normal, #b5bac1);
     display: grid;
@@ -673,9 +673,10 @@ div:has(> .vc-grokai-root) {
     transition: border-radius 0.15s ease-out, background-color 0.15s ease-out, color 0.15s ease-out;
 }
 
-.vc-grokai-sl-btn:hover {
-    border-radius: 16px;
-    background: var(--brand-500, #5865f2);
+.vc-grokai-sl-btn:hover,
+.vc-grokai-sl-btn:focus-visible {
+    border-radius: 15px;
+    background: var(--brand-500, var(--brand-experiment, #5865f2));
     color: #fff;
 }
 
