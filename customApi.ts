@@ -31,6 +31,11 @@ export function customMaxTokens(kind?: AiJobKind) {
     return 2048;
 }
 
+export function clampMaxTokens(raw?: number) {
+    if (typeof raw !== "number" || !Number.isFinite(raw)) return undefined;
+    return Math.min(8192, Math.max(64, Math.round(raw)));
+}
+
 function wantsThinking(kind?: AiJobKind) {
     return kind !== "draft" && kind !== "explain" && kind !== "summarize";
 }
@@ -334,7 +339,7 @@ export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: strin
     const acc = { text: "", thought: "", raw: "" };
     const turns = userAssistantTurns(opts.messages);
     const style = opts.style === "anthropic" ? "anthropic" : "openai";
-    const maxTokens = opts.maxTokens ?? customMaxTokens(opts.kind);
+    const maxTokens = clampMaxTokens(opts.maxTokens) ?? customMaxTokens(opts.kind);
     const thinking = wantsThinking(opts.kind);
 
     if (style === "anthropic") {

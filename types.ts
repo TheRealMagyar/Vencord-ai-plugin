@@ -78,6 +78,7 @@ export interface ChatRequest {
     customBaseUrl?: string;
     customApiKey?: string;
     customApiStyle?: CustomApiStyle;
+    maxTokens?: number;
 }
 
 export interface ExplainRequest {

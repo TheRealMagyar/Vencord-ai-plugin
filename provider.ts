@@ -37,6 +37,11 @@ export function selectedModel(provider: AiProvider = currentProvider()): string 
     return settings.store.grokModel || undefined;
 }
 
+function clampSettingTokens(raw?: number) {
+    if (typeof raw !== "number" || !Number.isFinite(raw)) return undefined;
+    return Math.min(8192, Math.max(64, Math.round(raw)));
+}
+
 export function customApiStyle(): CustomApiStyle {
     return settings.store.customApiStyle === "anthropic" ? "anthropic" : "openai";
 }
@@ -62,7 +67,7 @@ export function historyForRequest(messages: ChatMessage[]): ChatTurn[] {
 
 export function chatProviderFields(provider: AiProvider = currentProvider()): Pick<
     ChatRequest,
-    "provider" | "model" | "grokPath" | "codexPath" | "customBaseUrl" | "customApiKey" | "customApiStyle"
+    "provider" | "model" | "grokPath" | "codexPath" | "customBaseUrl" | "customApiKey" | "customApiStyle" | "maxTokens"
 > {
     const custom = provider === "custom" ? customEndpoint() : null;
     return {
@@ -73,5 +78,6 @@ export function chatProviderFields(provider: AiProvider = currentProvider()): Pi
         customBaseUrl: custom?.baseUrl,
         customApiKey: custom?.apiKey,
         customApiStyle: custom?.apiStyle,
+        maxTokens: provider === "custom" ? clampSettingTokens(settings.store.customMaxTokens) : undefined,
     };
 }

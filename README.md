@@ -149,6 +149,7 @@ If **Include channel context** is on, nearby messages are attached (the target i
 | Custom base URL | e.g. `http://127.0.0.1:11434/v1` (Ollama), `http://127.0.0.1:1234/v1` (LM Studio), `https://api.openai.com/v1`, `https://api.anthropic.com` |
 | Custom model | Whatever the server expects (`llama3.2`, `claude-sonnet-4-5`, …) |
 | Custom API key | Optional. Leave empty for most local servers. Stored in Equicord settings, never logged |
+| Custom max tokens | Slider 256–8192 (default 1024). Caps each custom reply. Lower is faster and less likely to loop |
 | Allow web search | Grok only, for **normal chat** (fact-check has its own search) |
 | Show thinking | Live thinking + tool use (Grok and Codex) |
 | Fact-check depth | Quick, Balanced (default), or Deep |

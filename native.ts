@@ -1276,7 +1276,7 @@ async function runCustomPrompt(request: ChatRequest, progress: ChatProgress): Pr
             system: extraRulesFor(request),
             messages: customTurns(request),
             kind: request.kind,
-            maxTokens: customMaxTokens(request.kind),
+            maxTokens: request.maxTokens ?? customMaxTokens(request.kind),
             signal: abort.signal,
             onText: text => {
                 progress.text = text;

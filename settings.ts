@@ -99,6 +99,14 @@ export const settings = definePluginSettings({
         default: "",
         placeholder: "sk-… or leave empty",
     },
+    customMaxTokens: {
+        type: OptionType.SLIDER,
+        description: "Max tokens per custom reply. Lower is faster and less likely to loop. Draft, chat, and summarize all use this.",
+        hidden() { return this.store.provider !== "custom"; },
+        default: 1024,
+        markers: [256, 512, 1024, 2048, 4096, 8192],
+        stickToMarkers: false,
+    },
     allowWebSearch: {
         type: OptionType.BOOLEAN,
         description: "Allow web search (Grok)",
