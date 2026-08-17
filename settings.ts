@@ -10,10 +10,11 @@ import { OptionType } from "@utils/types";
 export const settings = definePluginSettings({
     provider: {
         type: OptionType.SELECT,
-        description: "Which AI to use (local CLI subscription)",
+        description: "Which AI to use (local CLI or a custom HTTP endpoint)",
         options: [
             { label: "Grok (xAI)", value: "grok", default: true },
             { label: "Codex (OpenAI / ChatGPT)", value: "codex" },
+            { label: "Custom (local / API)", value: "custom" },
         ],
     },
     iconPreset: {
@@ -48,7 +49,7 @@ export const settings = definePluginSettings({
     grokModel: {
         type: OptionType.SELECT,
         description: "xAI / Grok model",
-        hidden() { return this.store.provider === "codex"; },
+        hidden() { return this.store.provider !== "grok"; },
         options: [
             { label: "grok-4.6 (default)", value: "grok-4.6", default: true },
             { label: "grok-4.5", value: "grok-4.5" },
@@ -68,15 +69,45 @@ export const settings = definePluginSettings({
             { label: "GPT-5.4-Mini", value: "gpt-5.4-mini" },
         ],
     },
+    customApiStyle: {
+        type: OptionType.SELECT,
+        description: "Custom endpoint type",
+        hidden() { return this.store.provider !== "custom"; },
+        options: [
+            { label: "OpenAI-compatible (Ollama, LM Studio, vLLM, llama.cpp, OpenAI)", value: "openai", default: true },
+            { label: "Anthropic-compatible (Claude, LiteLLM, local Anthropic)", value: "anthropic" },
+        ],
+    },
+    customBaseUrl: {
+        type: OptionType.STRING,
+        description: "Custom base URL. Examples: http://127.0.0.1:11434/v1 (Ollama), http://127.0.0.1:1234/v1 (LM Studio), https://api.openai.com/v1, https://api.anthropic.com",
+        hidden() { return this.store.provider !== "custom"; },
+        default: "http://127.0.0.1:11434/v1",
+        placeholder: "http://127.0.0.1:11434/v1",
+    },
+    customModel: {
+        type: OptionType.STRING,
+        description: "Custom model name (whatever the local server or API expects)",
+        hidden() { return this.store.provider !== "custom"; },
+        default: "",
+        placeholder: "llama3.2",
+    },
+    customApiKey: {
+        type: OptionType.STRING,
+        description: "API key (optional for most local servers). Stored in Equicord settings, never logged.",
+        hidden() { return this.store.provider !== "custom"; },
+        default: "",
+        placeholder: "sk-… or leave empty",
+    },
     allowWebSearch: {
         type: OptionType.BOOLEAN,
         description: "Allow web search (Grok)",
-        hidden() { return this.store.provider === "codex"; },
+        hidden() { return this.store.provider !== "grok"; },
         default: false,
     },
     showThinking: {
         type: OptionType.BOOLEAN,
-        description: "Show thinking and tool use (web search, etc.) while Grok or Codex works",
+        description: "Show thinking and tool use (web search, etc.) while the AI works",
         default: true,
     },
     factCheckDepth: {
@@ -96,7 +127,7 @@ export const settings = definePluginSettings({
     grokPath: {
         type: OptionType.STRING,
         description: "Custom grok.exe path (empty = auto-detect)",
-        hidden() { return this.store.provider === "codex"; },
+        hidden() { return this.store.provider !== "grok"; },
         default: "",
         placeholder: String.raw`C:\Users\You\.grok\bin\grok.exe`,
     },

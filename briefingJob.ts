@@ -8,6 +8,7 @@ import { showNotification } from "@api/Notifications";
 import { showToast, Toasts } from "@webpack/common";
 
 import { collectPings, formatPingsForAi, hydratePingContents, type BriefingDepth, type PingItem } from "./notifications";
+import { chatProviderFields, currentProvider } from "./provider";
 import { settings } from "./settings";
 import { getNative, t } from "./utils";
 
@@ -181,12 +182,7 @@ export async function startBriefing() {
                 formatPingsForAi(filled, depth),
             ].join("\n"),
             language: lang,
-            model: settings.store.provider === "codex"
-                ? (settings.store.codexModel && settings.store.codexModel !== "default" ? settings.store.codexModel : undefined)
-                : settings.store.grokModel,
-            grokPath: settings.store.grokPath || undefined,
-            provider: settings.store.provider === "codex" ? "codex" : "grok",
-            codexPath: settings.store.codexPath || undefined,
+            ...chatProviderFields(currentProvider()),
             kind: "chat",
             allowWebSearch: false,
         });

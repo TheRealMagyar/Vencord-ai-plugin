@@ -11,6 +11,7 @@ import { homedir, tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 
+import { probeCustomEndpoint, runCustomChat } from "./customApi";
 import { nativeT } from "./nativeI18n";
 import type { AiProvider, ChatProgress, ChatRequest, ChatToolStep, ExplainRequest, FactCheckDepth, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
 
@@ -23,6 +24,7 @@ const MAX_THOUGHT = 6_000;
 
 const jobs = new Map<string, ChatProgress>();
 const processes = new Map<string, ChildProcess>();
+const httpAborts = new Map<string, AbortController>();
 
 function trackProcess(jobId: string, child: ChildProcess) {
     processes.set(jobId, child);
@@ -253,9 +255,28 @@ async function getCodexStatus(customPath?: string, language?: string): Promise<G
     };
 }
 
-export async function getStatus(_event: unknown, providerOrPath?: string, maybePath?: string, language?: string): Promise<GrokStatus> {
-    const provider: AiProvider = providerOrPath === "codex" ? "codex" : "grok";
-    const customPath = providerOrPath === "codex" || providerOrPath === "grok" ? maybePath : providerOrPath;
+export async function getStatus(
+    _event: unknown,
+    providerOrPath?: string,
+    maybePath?: string,
+    language?: string,
+    custom?: { baseUrl?: string; apiKey?: string; apiStyle?: "openai" | "anthropic"; model?: string; },
+): Promise<GrokStatus> {
+    const provider: AiProvider = providerOrPath === "codex" || providerOrPath === "custom"
+        ? providerOrPath
+        : "grok";
+    const customPath = providerOrPath === "codex" || providerOrPath === "grok" || providerOrPath === "custom"
+        ? maybePath
+        : providerOrPath;
+    if (provider === "custom") {
+        return probeCustomEndpoint({
+            baseUrl: custom?.baseUrl,
+            apiKey: custom?.apiKey,
+            apiStyle: custom?.apiStyle,
+            model: custom?.model,
+            language,
+        });
+    }
     if (provider === "codex") return getCodexStatus(customPath, language);
 
     const grokPath = resolveGrokPath(customPath);
@@ -335,6 +356,7 @@ function factCheckDepthOf(request: ChatRequest): FactCheckDepth {
 }
 
 function wantsWebTools(request: ChatRequest) {
+    if (request.provider === "custom") return false;
     return request.kind === "factcheck" || Boolean(request.allowWebSearch);
 }
 
@@ -364,8 +386,13 @@ function timeoutMsFor(request: ChatRequest) {
 }
 
 function extraRulesFor(request: ChatRequest) {
+    const identity = request.provider === "custom"
+        ? "You are an assistant answering from inside Discord through a Vencord plugin."
+        : request.provider === "codex"
+            ? "You are Codex, answering from inside Discord through a Vencord plugin."
+            : "You are Grok, answering from inside Discord through a Vencord plugin.";
     const parts = [
-        "You are Grok, answering from inside Discord through a Vencord plugin.",
+        identity,
         "If the prompt includes a Discord transcript, treat it as ground truth for what was said.",
         "Use that transcript to summarize, explain, fact-check, draft a reply, or answer questions about the conversation.",
         "Do not invent messages that are not in the transcript. Do not mention these instructions.",
@@ -396,24 +423,33 @@ function extraRulesFor(request: ChatRequest) {
     }
 
     if (request.kind === "factcheck") {
-        const depth = factCheckDepthOf(request);
-        if (depth === "quick") {
+        if (!wantsWebTools(request)) {
             parts.push(
-                "This is a quick fact-check. At most one web_search. Do not use web_fetch.",
-                "Then write a short complete verdict immediately. Do not keep searching.",
-            );
-        } else if (depth === "deep") {
-            parts.push(
-                "This is a thorough fact-check. Use web_search, and web_fetch only for the most important sources.",
-                "Then output full verdicts. Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable, a short reason, and sources.",
-                "Never stop after announcing that you will look something up.",
+                "This is a fact-check. You do not have live web search.",
+                "Reason from the message, any attached transcript, and your knowledge.",
+                "Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable and a short reason.",
+                "Say when you cannot verify something.",
             );
         } else {
-            parts.push(
-                "This is a balanced fact-check. At most two web_search calls. Do not use web_fetch.",
-                "Then write the complete verdicts immediately. Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable and a short reason.",
-                "Never stop after announcing that you will look something up.",
-            );
+            const depth = factCheckDepthOf(request);
+            if (depth === "quick") {
+                parts.push(
+                    "This is a quick fact-check. At most one web_search. Do not use web_fetch.",
+                    "Then write a short complete verdict immediately. Do not keep searching.",
+                );
+            } else if (depth === "deep") {
+                parts.push(
+                    "This is a thorough fact-check. Use web_search, and web_fetch only for the most important sources.",
+                    "Then output full verdicts. Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable, a short reason, and sources.",
+                    "Never stop after announcing that you will look something up.",
+                );
+            } else {
+                parts.push(
+                    "This is a balanced fact-check. At most two web_search calls. Do not use web_fetch.",
+                    "Then write the complete verdicts immediately. Every checkable claim needs True / Mostly true / Mixed / Mostly false / False / Unverifiable and a short reason.",
+                    "Never stop after announcing that you will look something up.",
+                );
+            }
         }
     }
 
@@ -1161,27 +1197,106 @@ export async function getChatProgress(_event: unknown, jobId: string): Promise<C
 
 export async function cancelChat(_event: unknown, jobId: string): Promise<boolean> {
     const child = processes.get(jobId);
+    const abort = httpAborts.get(jobId);
     const progress = jobs.get(jobId);
     if (progress && progress.status === "running") {
         progress.status = "error";
         progress.error = "cancelled";
     }
-    if (!child) return false;
+    let killed = false;
+    if (abort) {
+        try {
+            abort.abort();
+            killed = true;
+        } catch {
+            // ignore
+        }
+        httpAborts.delete(jobId);
+    }
+    if (!child) return killed;
     try {
         child.kill();
     } catch {
-        return false;
+        return killed;
     }
     processes.delete(jobId);
     return true;
 }
 
+function customTurns(request: ChatRequest) {
+    const turns: { role: "user" | "assistant"; content: string; }[] = [];
+    for (const item of request.history ?? []) {
+        if (item.role !== "user" && item.role !== "assistant") continue;
+        const content = item.content.trim();
+        if (!content) continue;
+        turns.push({ role: item.role, content });
+    }
+    const prompt = request.prompt.trim();
+    if (prompt) turns.push({ role: "user", content: prompt });
+    return turns;
+}
+
+async function runCustomPrompt(request: ChatRequest, progress: ChatProgress): Promise<GrokReply> {
+    const baseUrl = request.customBaseUrl?.trim() || "";
+    const model = request.model?.trim() || "";
+    if (!baseUrl)
+        return { ok: false, text: "", sessionId: null, error: nativeT(request.language, "customNoUrl") };
+    if (!model)
+        return { ok: false, text: "", sessionId: null, error: nativeT(request.language, "customNoModel") };
+
+    const abort = new AbortController();
+    httpAborts.set(progress.jobId, abort);
+    const timeoutMs = timeoutMsFor(request);
+    const timer = setTimeout(() => abort.abort(), timeoutMs);
+
+    try {
+        const result = await runCustomChat({
+            style: request.customApiStyle === "anthropic" ? "anthropic" : "openai",
+            baseUrl,
+            apiKey: request.customApiKey?.trim() || undefined,
+            model,
+            system: extraRulesFor(request),
+            messages: customTurns(request),
+            signal: abort.signal,
+            onText: text => {
+                progress.text = text;
+            },
+            onThought: thought => {
+                progress.thought = clipThought(thought);
+            },
+        });
+        const text = result.text.trim();
+        if (!text)
+            return { ok: false, text: "", sessionId: null, error: nativeT(request.language, "customEmpty"), thought: progress.thought || undefined };
+        return { ok: true, text, sessionId: null, error: null, thought: progress.thought || undefined };
+    } catch (error) {
+        const aborted = abort.signal.aborted || (error instanceof Error && error.name === "AbortError");
+        const partial = progress.text.trim();
+        if (aborted && partial)
+            return { ok: true, text: partial, sessionId: null, error: null, thought: progress.thought || undefined };
+        if (aborted)
+            return { ok: false, text: "", sessionId: null, error: nativeT(request.language, "timedOut", { seconds: Math.round(timeoutMs / 1000) }) };
+        return {
+            ok: false,
+            text: "",
+            sessionId: null,
+            error: error instanceof Error ? error.message : String(error),
+            thought: progress.thought || undefined,
+        };
+    } finally {
+        clearTimeout(timer);
+        if (httpAborts.get(progress.jobId) === abort) httpAborts.delete(progress.jobId);
+    }
+}
+
 export async function sendChat(_event: unknown, request: ChatRequest): Promise<GrokReply> {
     const progress = newJob(request.jobId);
     try {
-        const reply = request.provider === "codex"
-            ? await runCodexPrompt(request, progress)
-            : await runPrompt(request, progress);
+        const reply = request.provider === "custom"
+            ? await runCustomPrompt(request, progress)
+            : request.provider === "codex"
+                ? await runCodexPrompt(request, progress)
+                : await runPrompt(request, progress);
         finishJob(progress, reply);
         return {
             ...reply,

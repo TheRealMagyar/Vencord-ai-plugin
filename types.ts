@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-export type AiProvider = "grok" | "codex";
+export type AiProvider = "grok" | "codex" | "custom";
+export type CustomApiStyle = "openai" | "anthropic";
 export type FactCheckDepth = "quick" | "balanced" | "deep";
 export type AiJobKind = "chat" | "explain" | "factcheck" | "draft" | "summarize";
 export type SummarizeRange = "hour" | "today" | "week";
@@ -49,6 +50,18 @@ export interface GrokReply {
     tools?: ChatToolStep[];
 }
 
+export interface ChatTurn {
+    role: "user" | "assistant" | "system";
+    content: string;
+}
+
+export interface CustomEndpoint {
+    baseUrl?: string;
+    apiKey?: string;
+    apiStyle?: CustomApiStyle;
+    model?: string;
+}
+
 export interface ChatRequest {
     prompt: string;
     sessionId?: string | null;
@@ -61,6 +74,10 @@ export interface ChatRequest {
     kind?: AiJobKind;
     jobId?: string;
     factCheckDepth?: FactCheckDepth;
+    history?: ChatTurn[];
+    customBaseUrl?: string;
+    customApiKey?: string;
+    customApiStyle?: CustomApiStyle;
 }
 
 export interface ExplainRequest {

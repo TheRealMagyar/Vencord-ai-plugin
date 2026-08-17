@@ -8,6 +8,7 @@ import { showNotification } from "@api/Notifications";
 import { showToast, Toasts } from "@webpack/common";
 
 import { loadThread, persistableMessages, saveThread } from "./history";
+import { providerLabel } from "./provider";
 import type { AiJobKind, AiProvider, ChatMessage, ChatToolStep, GrokReply } from "./types";
 import { getNative, t } from "./utils";
 
@@ -49,7 +50,7 @@ function notifyJobDone(job: LiveJob, ok: boolean) {
     if (isChatWindowOpen()) return;
 
     const title = job.title || "Discord";
-    const provider = job.provider === "codex" ? "Codex" : "Grok";
+    const provider = providerLabel(job.provider);
     const message = !ok
         ? t("notifyFailed", { provider, title })
         : job.kind === "explain"

@@ -1,11 +1,11 @@
 {
   "$schema": "https://venpm.dev/schemas/v1/plugins.json",
   "name": "ai-plugin",
-  "description": "Local Grok (xAI) or Codex (OpenAI / ChatGPT) inside Discord via the signed-in CLI.",
+  "description": "Local Grok, Codex, or a custom OpenAI/Anthropic endpoint inside Discord.",
   "plugins": {
     "aiPlugin": {
       "version": "1.0.0",
-      "description": "Chat with your local Grok or Codex CLI from Discord. Explain and fact-check messages.",
+      "description": "Chat with Grok, Codex, or a custom local OpenAI/Anthropic endpoint from Discord.",
       "authors": [
         {
           "name": "TheRealMagyar",

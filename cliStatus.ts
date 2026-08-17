@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { currentProvider, customEndpoint } from "./provider";
 import { settings } from "./settings";
 import type { AiProvider, GrokStatus } from "./types";
 import { getNative, t } from "./utils";
@@ -40,6 +41,7 @@ function emit() {
 }
 
 function customPath(provider: AiProvider) {
+    if (provider === "custom") return undefined;
     const raw = provider === "codex" ? settings.store.codexPath : settings.store.grokPath;
     return raw || undefined;
 }
@@ -69,7 +71,8 @@ export async function refreshCliStatus(provider: AiProvider, force = false) {
         return cache[provider]!;
     }
 
-    const work = Native.getStatus(provider, customPath(provider), settings.store.language)
+    const extra = provider === "custom" ? customEndpoint() : undefined;
+    const work = Native.getStatus(provider, customPath(provider), settings.store.language, extra)
         .then(status => {
             cache[provider] = status;
             checkedAt[provider] = Date.now();
@@ -101,14 +104,14 @@ export async function refreshCliStatus(provider: AiProvider, force = false) {
     return work;
 }
 
-function currentProvider(): AiProvider {
-    return settings.store.provider === "codex" ? "codex" : "grok";
-}
-
 export function startCliStatusWatch() {
     const current = currentProvider();
-    const other: AiProvider = current === "codex" ? "grok" : "codex";
-    void refreshCliStatus(current).then(() => refreshCliStatus(other));
+    if (current === "custom") {
+        void refreshCliStatus(current);
+    } else {
+        const other: AiProvider = current === "codex" ? "grok" : "codex";
+        void refreshCliStatus(current).then(() => refreshCliStatus(other));
+    }
 
     if (timer) window.clearInterval(timer);
     timer = window.setInterval(() => {

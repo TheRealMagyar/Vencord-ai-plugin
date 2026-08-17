@@ -13,8 +13,9 @@ import { getCachedStatus, refreshCliStatus, subscribeCliStatus } from "./cliStat
 import { GrokIcon } from "./GrokIcon";
 import { clearThread, getThreadTitle, listThreads, loadThread } from "./history";
 import { cancelLiveJob, getLiveJob, interruptLiveJob, isChannelBusy, listLiveJobs, mergeLiveMessages, runLiveChat, setChatWindowOpen, setOpenChatHandler, subscribeAllJobs, subscribeLiveJob } from "./liveChat";
+import { chatProviderFields, historyForRequest, providerLabel, resolveProvider } from "./provider";
 import { settings } from "./settings";
-import type { AiJobKind, ChatMessage, ChatToolStep, GrokStatus, StoredThread, SummarizeRange } from "./types";
+import type { AiJobKind, AiProvider, ChatMessage, ChatToolStep, GrokStatus, StoredThread, SummarizeRange } from "./types";
 import { resolveLang } from "./i18n";
 import { cl, getMessageContent, getNative, t } from "./utils";
 
@@ -100,13 +101,13 @@ function resolveMessageAction(options?: OpenOptions): { kind: MessageActionKind;
 }
 
 function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; options?: OpenOptions; }) {
-    const { language, grokModel, codexModel, allowWebSearch, grokPath, includeChannelContext, provider, codexPath, showThinking, factCheckDepth } = settings.use(["language", "grokModel", "codexModel", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath", "showThinking", "factCheckDepth"]);
-    const [status, setStatus] = useState<GrokStatus | null>(() => getCachedStatus(provider === "codex" ? "codex" : "grok"));
+    const { language, allowWebSearch, grokPath, includeChannelContext, provider, codexPath, showThinking, factCheckDepth, customBaseUrl, customApiKey, customApiStyle, customModel } = settings.use(["language", "allowWebSearch", "grokPath", "includeChannelContext", "provider", "codexPath", "showThinking", "factCheckDepth", "customBaseUrl", "customApiKey", "customApiStyle", "customModel"]);
+    const [status, setStatus] = useState<GrokStatus | null>(() => getCachedStatus(resolveProvider(provider)));
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [busy, setBusy] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(null);
-    const sessionsRef = useRef<Partial<Record<"grok" | "codex", string | null>>>({});
+    const sessionsRef = useRef<Partial<Record<AiProvider, string | null>>>({});
     const [channelId, setChannelId] = useState("");
     const [threadTitle, setThreadTitle] = useState("Grok");
     const [threads, setThreads] = useState<StoredThread[]>([]);
@@ -118,11 +119,8 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     const Native = getNative();
 
     const lang = resolveLang(language);
-    const activeProvider = (provider === "codex" ? "codex" : "grok") as "grok" | "codex";
-    const providerLabel = activeProvider === "codex" ? "Codex" : "Grok";
-    const selectedModel = activeProvider === "codex"
-        ? (codexModel && codexModel !== "default" ? codexModel : undefined)
-        : grokModel;
+    const activeProvider = resolveProvider(provider);
+    const label = providerLabel(activeProvider);
 
     useEffect(() => {
         if (!stickToBottom.current) return;
@@ -154,7 +152,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
 
     useEffect(() => {
         void refreshCliStatus(activeProvider);
-    }, [activeProvider, grokPath, codexPath, language]);
+    }, [activeProvider, grokPath, codexPath, language, customBaseUrl, customApiKey, customApiStyle, customModel]);
 
     useEffect(() => {
         if (started.current) return;
@@ -227,12 +225,9 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         return Native.sendChat({
                             prompt: withTranscript(userPrompt, packed, kind),
                             sessionId: null,
-                            model: selectedModel,
                             language: lang,
                             allowWebSearch: kind === "factcheck",
-                            grokPath: grokPath || undefined,
-                            provider: activeProvider,
-                            codexPath: codexPath || undefined,
+                            ...chatProviderFields(activeProvider),
                             kind,
                             jobId,
                             factCheckDepth: kind === "factcheck" ? factCheckDepth : undefined,
@@ -333,12 +328,9 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         "summarize",
                     ),
                     sessionId: null,
-                    model: selectedModel,
                     language: lang,
                     allowWebSearch: false,
-                    grokPath: grokPath || undefined,
-                    provider: activeProvider,
-                    codexPath: codexPath || undefined,
+                    ...chatProviderFields(activeProvider),
                     kind: "summarize",
                     jobId,
                 });
@@ -426,12 +418,10 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 return Native.sendChat({
                     prompt: withTranscript(prompt, packed, "chat"),
                     sessionId,
-                    model: selectedModel,
                     language: lang,
                     allowWebSearch,
-                    grokPath: grokPath || undefined,
-                    provider: activeProvider,
-                    codexPath: codexPath || undefined,
+                    ...chatProviderFields(activeProvider),
+                    history: activeProvider === "custom" ? historyForRequest(storedRef.current) : undefined,
                     kind: "chat",
                     jobId,
                 });
@@ -467,7 +457,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
     }
 
     const connected = Boolean(status?.installed && status.authenticated);
-    const title = `${providerLabel} · ${threadTitle}`;
+    const title = `${label} · ${threadTitle}`;
 
     return (
         <Modal
@@ -478,7 +468,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                 <span className={cl("status")}>
                     <span className={cl("dot", { ok: connected })} />
                     {connected
-                        ? `${providerLabel} · ${status?.subscription || t("connected")}`
+                        ? `${label} · ${status?.subscription || t("connected")}`
                         : (status?.error || t("connecting"))}
                 </span>
             }
@@ -578,7 +568,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                             <div className={cl("empty-icon")}>
                                 <GrokIcon height={32} width={32} />
                             </div>
-                            <strong>{t("hello", { provider: providerLabel })}</strong>
+                            <strong>{t("hello", { provider: label })}</strong>
                             <div>
                                 {t("helloHint", { title: threadTitle })}
                             </div>
@@ -590,12 +580,12 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         const thought = showThinking ? (msg.thought ?? "") : "";
                         const showTrace = msg.role === "assistant" && (thought.trim().length > 0 || tools.length > 0);
                         const answer = msg.pending && !msg.text.trim()
-                            ? t("thinking", { provider: providerLabel })
+                            ? t("thinking", { provider: label })
                             : msg.text;
                         return (
                             <div key={msg.id} className={cl("row", msg.role)}>
                                 <div className={cl("meta")}>
-                                    {msg.role === "user" ? t("you") : providerLabel}
+                                    {msg.role === "user" ? t("you") : label}
                                     {msg.at ? ` · ${formatTime(msg.at)}` : ""}
                                 </div>
                                 {showTrace && (
@@ -642,7 +632,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                         rows={1}
                         value={input}
                         disabled={busy || !connected}
-                        placeholder={t("placeholder", { provider: providerLabel })}
+                        placeholder={t("placeholder", { provider: label })}
                         onChange={e => setInput(e.currentTarget.value)}
                         onKeyDown={e => {
                             if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing || e.keyCode === 229)

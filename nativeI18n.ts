@@ -91,6 +91,42 @@ const dict = {
         de: "Codex wurde beendet (Code {code}).",
         es: "Codex salió (código {code}).",
     },
+    customNoUrl: {
+        en: "Set a custom base URL in plugin settings (for example http://127.0.0.1:11434/v1).",
+        hu: "Állíts be egy custom base URL-t a plugin beállításaiban (például http://127.0.0.1:11434/v1).",
+        de: "Setze in den Plugin-Einstellungen eine Custom-Base-URL (z. B. http://127.0.0.1:11434/v1).",
+        es: "Pon una URL base personalizada en ajustes (por ejemplo http://127.0.0.1:11434/v1).",
+    },
+    customBadUrl: {
+        en: "Custom base URL must start with http:// or https://.",
+        hu: "A custom base URL-nek http:// vagy https:// elejűnek kell lennie.",
+        de: "Die Custom-Base-URL muss mit http:// oder https:// beginnen.",
+        es: "La URL base personalizada debe empezar por http:// o https://.",
+    },
+    customNoModel: {
+        en: "Set a custom model name in plugin settings (for example llama3.2).",
+        hu: "Állíts be egy custom modellnevet a plugin beállításaiban (például llama3.2).",
+        de: "Setze in den Plugin-Einstellungen einen Custom-Modellnamen (z. B. llama3.2).",
+        es: "Pon un nombre de modelo personalizado en ajustes (por ejemplo llama3.2).",
+    },
+    customBadKey: {
+        en: "The custom endpoint rejected the API key. Check the key, or leave it empty for local servers.",
+        hu: "A custom endpoint elutasította az API kulcsot. Ellenőrizd, vagy hagyd üresen helyi szervernél.",
+        de: "Der Custom-Endpunkt hat den API-Schlüssel abgelehnt. Prüfe ihn, oder lass ihn bei lokalen Servern leer.",
+        es: "El endpoint personalizado rechazó la clave API. Revísala, o déjala vacía en servidores locales.",
+    },
+    customUnreachable: {
+        en: "Cannot reach the custom endpoint. Is the local server running?",
+        hu: "A custom endpoint nem elérhető. Fut a helyi szerver?",
+        de: "Custom-Endpunkt nicht erreichbar. Läuft der lokale Server?",
+        es: "No se puede alcanzar el endpoint personalizado. ¿Está el servidor local en marcha?",
+    },
+    customEmpty: {
+        en: "The custom endpoint returned an empty reply. Check the URL, model, and that the server is running.",
+        hu: "A custom endpoint üres választ adott. Nézd meg az URL-t, a modellt, és hogy fut-e a szerver.",
+        de: "Der Custom-Endpunkt hat eine leere Antwort gegeben. Prüfe URL, Modell und ob der Server läuft.",
+        es: "El endpoint personalizado devolvió una respuesta vacía. Revisa la URL, el modelo y que el servidor esté en marcha.",
+    },
     timedOut: {
         en: "Timed out ({seconds}s).",
         hu: "Időtúllépés ({seconds}s).",

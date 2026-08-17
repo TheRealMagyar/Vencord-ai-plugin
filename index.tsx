@@ -21,6 +21,8 @@ import { ChannelStore, Menu, SelectedChannelStore, showToast, Toasts, useEffect,
 import { packChannelContext, withTranscript } from "./channelContext";
 import { getCachedStatus, refreshCliStatus, startCliStatusWatch, stopCliStatusWatch, subscribeCliStatus } from "./cliStatus";
 import { openGrokModal } from "./ChatModal";
+import { loadThread } from "./history";
+import { chatProviderFields, currentProvider, historyForRequest, providerLabel, resolveProvider } from "./provider";
 import { DraftReplyIcon, FactCheckIcon, GrokIcon, SummarizeIcon } from "./GrokIcon";
 import type { SummarizeRange } from "./types";
 import { renderNotificationCenterButton } from "./ServerListButton";
@@ -204,8 +206,8 @@ async function runPluginUpdate(language: string) {
 }
 
 function SettingsAbout() {
-    const { language, grokPath, provider, codexPath } = settings.use(["language", "grokPath", "provider", "codexPath"]);
-    const activeProvider = provider === "codex" ? "codex" : "grok";
+    const { language, grokPath, provider, codexPath, customBaseUrl, customApiKey, customApiStyle, customModel } = settings.use(["language", "grokPath", "provider", "codexPath", "customBaseUrl", "customApiKey", "customApiStyle", "customModel"]);
+    const activeProvider = resolveProvider(provider);
     const [status, setStatus] = useState<GrokStatus | null>(() => getCachedStatus(activeProvider));
     const [update, setUpdate] = useState<UpdateStatus | null>(null);
     const [busy, setBusy] = useState(false);
@@ -220,16 +222,16 @@ function SettingsAbout() {
         const Native = getNative();
         if (!Native) return;
         Native.checkForUpdate(language).then(setUpdate).catch(() => { /* ignore */ });
-    }, [language, grokPath, provider, codexPath]);
+    }, [language, grokPath, provider, codexPath, customBaseUrl, customApiKey, customApiStyle, customModel]);
 
     return (
         <div className={cl("settings")}>
             <strong>{status?.authenticated
-                ? t("cliConnected", { name: provider === "codex" ? "Codex" : "Grok" })
+                ? t(activeProvider === "custom" ? "endpointConnected" : "cliConnected", { name: providerLabel(activeProvider) })
                 : t("cliStatus")}</strong>
             <div>{status?.subscription || status?.error || t("checking")}</div>
             {status?.displayName && <div>{t("account")}: {status.displayName}</div>}
-            {status?.version && <div>CLI: {status.version}</div>}
+            {status?.version && <div>{activeProvider === "custom" ? status.version : `CLI: ${status.version}`}</div>}
             {status?.grokPath && <div><code>{status.grokPath}</code></div>}
 
             <strong>{t("githubUpdate")}</strong>
@@ -266,9 +268,9 @@ function SettingsAbout() {
 
 export default definePlugin({
     name: "AI-Plugin",
-    description: "Chat with your local Grok or Codex CLI from Discord. Explain, fact-check, draft replies, and summarize channels.",
+    description: "Chat with Grok, Codex, or a custom local OpenAI/Anthropic endpoint from Discord. Explain, fact-check, draft replies, and summarize channels.",
     authors: [{ name: "TheRealMagyar", id: 462651633709613056n }],
-    searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "explain", "factcheck", "draft", "summarize", "notifications", "mentions"],
+    searchTerms: ["aiPlugin", "GrokAi", "Grok", "xAI", "AI", "ChatGPT", "Codex", "OpenAI", "Anthropic", "Ollama", "LM Studio", "explain", "factcheck", "draft", "summarize", "notifications", "mentions"],
     tags: ["Chat", "Utility"],
     dependencies: ["ChatInputButtonAPI", "MessagePopoverAPI", "CommandsAPI", "HeaderBarAPI", "ServerListAPI"],
     settings,
@@ -380,16 +382,14 @@ export default definePlugin({
                     prompt: question,
                     enabled: settings.store.includeChannelContext,
                 });
+                const provider = currentProvider();
+                const stored = provider === "custom" ? await loadThread(ctx.channel.id) : null;
                 const reply = await Native.sendChat({
                     prompt: withTranscript(question, packed, "chat"),
-                    model: settings.store.provider === "codex"
-                        ? (settings.store.codexModel && settings.store.codexModel !== "default" ? settings.store.codexModel : undefined)
-                        : settings.store.grokModel,
                     language: settings.store.language as "en" | "hu" | "de" | "es",
                     allowWebSearch: settings.store.allowWebSearch,
-                    grokPath: settings.store.grokPath || undefined,
-                    provider: settings.store.provider === "codex" ? "codex" : "grok",
-                    codexPath: settings.store.codexPath || undefined,
+                    ...chatProviderFields(provider),
+                    history: stored ? historyForRequest(stored.messages) : undefined,
                     kind: "chat",
                 });
 

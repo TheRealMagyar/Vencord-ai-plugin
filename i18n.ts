@@ -10,10 +10,10 @@ export type UiLang = "en" | "hu" | "de" | "es";
 
 const dict = {
     desktopOnly: {
-        en: "This plugin only works on desktop Discord / Vesktop (local Grok or Codex CLI required).",
-        hu: "Ez a plugin csak asztali Discordon / Vesktopon működik (helyi Grok vagy Codex CLI kell).",
-        de: "Dieses Plugin funktioniert nur in Discord Desktop / Vesktop (lokale Grok- oder Codex-CLI nötig).",
-        es: "Este plugin solo funciona en Discord de escritorio / Vesktop (se necesita la CLI local de Grok o Codex).",
+        en: "This plugin only works on desktop Discord / Vesktop (local Grok or Codex CLI, or a custom HTTP endpoint).",
+        hu: "Ez a plugin csak asztali Discordon / Vesktopon működik (helyi Grok vagy Codex CLI, vagy custom HTTP endpoint).",
+        de: "Dieses Plugin funktioniert nur in Discord Desktop / Vesktop (lokale Grok- oder Codex-CLI, oder ein Custom-HTTP-Endpunkt).",
+        es: "Este plugin solo funciona en Discord de escritorio / Vesktop (CLI local de Grok o Codex, o un endpoint HTTP personalizado).",
     },
     explainVisible: {
         en: "Explain this message{author}:\n{content}",
@@ -369,6 +369,12 @@ const dict = {
         de: "{name}-CLI verbunden",
         es: "CLI de {name} conectada",
     },
+    endpointConnected: {
+        en: "{name} endpoint connected",
+        hu: "{name} endpoint csatlakoztatva",
+        de: "{name}-Endpunkt verbunden",
+        es: "Endpoint de {name} conectado",
+    },
     cliStatus: {
         en: "AI CLI status",
         hu: "AI CLI státusz",
@@ -514,10 +520,10 @@ const dict = {
         es: "Mensaje directo",
     },
     notifNeedCli: {
-        en: "Connect Grok or Codex in settings first.",
-        hu: "Előbb csatlakoztasd a Grok vagy Codex CLI-t a beállításokban.",
-        de: "Verbinde zuerst Grok oder Codex in den Einstellungen.",
-        es: "Conecta primero Grok o Codex en ajustes.",
+        en: "Connect Grok, Codex, or a custom endpoint in settings first.",
+        hu: "Előbb csatlakoztasd a Grok / Codex CLI-t vagy a custom endpointot a beállításokban.",
+        de: "Verbinde zuerst Grok, Codex oder einen Custom-Endpunkt in den Einstellungen.",
+        es: "Conecta primero Grok, Codex o un endpoint personalizado en ajustes.",
     },
 } as const;
 
