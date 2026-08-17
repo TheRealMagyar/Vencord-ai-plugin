@@ -4,8 +4,21 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import type { AiJobKind, ChatTurn, CustomApiStyle, GrokStatus } from "./types";
+import type { AiJobKind, ChatToolStep, ChatTurn, CustomApiStyle, GrokStatus } from "./types";
 import { nativeT } from "./nativeI18n";
+import {
+    ANTHROPIC_WEB_TOOLS,
+    executeWebTool,
+    OPENAI_WEB_TOOLS,
+    parseAnthropicToolCalls,
+    parseOpenAiToolCalls,
+    parseXmlToolCalls,
+    stripToolXml,
+    xmlToolInstructions,
+    type WebToolBudget,
+    type WebToolCall,
+    type WebToolSpend,
+} from "./webTools";
 
 export interface CustomChatOpts {
     style: CustomApiStyle;
@@ -17,8 +30,10 @@ export interface CustomChatOpts {
     signal: AbortSignal;
     kind?: AiJobKind;
     maxTokens?: number;
+    tools?: WebToolBudget | null;
     onText: (full: string) => void;
     onThought?: (full: string) => void;
+    onTool?: (step: ChatToolStep) => void;
 }
 
 const DEFAULT_STOP = ["<|im_end|>", "<|endoftext|>", "<|eot_id|>", "</s>", "<|end|>"];
@@ -288,14 +303,31 @@ function applyAnthropicEvent(event: string, data: string, acc: { text: string; t
     return;
 }
 
-function textFromOpenAiJson(data: Record<string, unknown>) {
+function openAiMessage(data: Record<string, unknown>) {
     const choices = data.choices;
     if (Array.isArray(choices)) {
         for (const choice of choices) {
             if (!choice || typeof choice !== "object") continue;
             const rec = choice as Record<string, unknown>;
-            const message = rec.message as Record<string, unknown> | undefined;
-            const content = asText(message?.content) || asText(rec.text);
+            if (rec.message && typeof rec.message === "object")
+                return rec.message as Record<string, unknown>;
+        }
+    }
+    return null;
+}
+
+function textFromOpenAiJson(data: Record<string, unknown>) {
+    const message = openAiMessage(data);
+    if (message) {
+        const content = asText(message.content) || asText(message.text);
+        if (content) return content;
+    }
+    const choices = data.choices;
+    if (Array.isArray(choices)) {
+        for (const choice of choices) {
+            if (!choice || typeof choice !== "object") continue;
+            const rec = choice as Record<string, unknown>;
+            const content = asText(rec.text);
             if (content) return content;
         }
     }
@@ -335,19 +367,263 @@ function finishCustom(acc: { text: string; thought: string; raw: string; }, onTe
     return { text: acc.text, thought: acc.thought };
 }
 
+function collectToolCalls(text: string, official: WebToolCall[]) {
+    if (official.length) return official;
+    return parseXmlToolCalls(text);
+}
+
+async function runToolRound(
+    calls: WebToolCall[],
+    budget: WebToolBudget,
+    spend: WebToolSpend,
+    signal: AbortSignal,
+    onTool?: (step: ChatToolStep) => void,
+) {
+    const results: { call: WebToolCall; result: string; }[] = [];
+    for (const call of calls) {
+        const result = await executeWebTool(call, budget, spend, signal, onTool);
+        results.push({ call, result });
+    }
+    return results;
+}
+
+function allowedOpenAiTools(budget: WebToolBudget) {
+    return OPENAI_WEB_TOOLS.filter(tool => {
+        if (tool.function.name === "web_search") return budget.search;
+        if (tool.function.name === "web_fetch") return budget.fetch;
+        return false;
+    });
+}
+
+function allowedAnthropicTools(budget: WebToolBudget) {
+    return ANTHROPIC_WEB_TOOLS.filter(tool => {
+        if (tool.name === "web_search") return budget.search;
+        if (tool.name === "web_fetch") return budget.fetch;
+        return false;
+    });
+}
+
+async function completeOpenAi(opts: {
+    url: string;
+    apiKey?: string;
+    model: string;
+    messages: Record<string, unknown>[];
+    maxTokens: number;
+    thinking: boolean;
+    tools?: WebToolBudget | null;
+    nativeTools: boolean;
+    signal: AbortSignal;
+}): Promise<{ text: string; thought: string; toolCalls: WebToolCall[]; nativeTools: boolean; }> {
+    const body: Record<string, unknown> = {
+        model: opts.model,
+        messages: opts.messages,
+        stream: false,
+        max_tokens: opts.maxTokens,
+        max_completion_tokens: opts.maxTokens,
+        stop: DEFAULT_STOP,
+        frequency_penalty: 0.4,
+        repeat_penalty: 1.15,
+        chat_template_kwargs: { enable_thinking: opts.thinking },
+        enable_thinking: opts.thinking,
+    };
+    if (opts.tools && opts.nativeTools) {
+        body.tools = allowedOpenAiTools(opts.tools);
+        body.tool_choice = "auto";
+    }
+
+    let res = await postJson(opts.url, openaiHeaders(opts.apiKey), body, opts.signal);
+    if (!res.ok && res.status === 400) {
+        await res.text().catch(() => "");
+        const fallback: Record<string, unknown> = {
+            model: opts.model,
+            messages: opts.messages,
+            stream: false,
+            max_tokens: opts.maxTokens,
+            stop: DEFAULT_STOP,
+        };
+        if (opts.tools && opts.nativeTools) {
+            fallback.tools = body.tools;
+            fallback.tool_choice = "auto";
+        }
+        res = await postJson(opts.url, openaiHeaders(opts.apiKey), fallback, opts.signal);
+        if (!res.ok && res.status === 400 && opts.nativeTools && opts.tools) {
+            await res.text().catch(() => "");
+            return completeOpenAi({ ...opts, nativeTools: false });
+        }
+    }
+    if (!res.ok)
+        throw new Error(errorFromBody(await res.text().catch(() => ""), res.status));
+
+    const data = await res.json() as Record<string, unknown>;
+    const message = openAiMessage(data);
+    const text = textFromOpenAiJson(data);
+    const official = parseOpenAiToolCalls(message ?? undefined);
+    const toolCalls = collectToolCalls(text, official);
+    return {
+        text: toolCalls.length ? stripToolXml(text) : text,
+        thought: "",
+        toolCalls,
+        nativeTools: opts.nativeTools && official.length > 0,
+    };
+}
+
+async function completeAnthropic(opts: {
+    url: string;
+    apiKey?: string;
+    model: string;
+    system: string;
+    messages: Record<string, unknown>[];
+    maxTokens: number;
+    tools?: WebToolBudget | null;
+    nativeTools: boolean;
+    signal: AbortSignal;
+}): Promise<{ text: string; thought: string; toolCalls: WebToolCall[]; nativeTools: boolean; data: Record<string, unknown>; }> {
+    const body: Record<string, unknown> = {
+        model: opts.model,
+        max_tokens: opts.maxTokens,
+        system: opts.system,
+        messages: opts.messages,
+        stream: false,
+    };
+    if (opts.tools && opts.nativeTools)
+        body.tools = allowedAnthropicTools(opts.tools);
+
+    let res = await postJson(opts.url, anthropicHeaders(opts.apiKey), body, opts.signal);
+    if (!res.ok && res.status === 400 && opts.nativeTools && opts.tools) {
+        await res.text().catch(() => "");
+        return completeAnthropic({ ...opts, nativeTools: false });
+    }
+    if (!res.ok)
+        throw new Error(errorFromBody(await res.text().catch(() => ""), res.status));
+
+    const data = await res.json() as Record<string, unknown>;
+    const text = textFromAnthropicJson(data);
+    const official = parseAnthropicToolCalls(data);
+    const toolCalls = collectToolCalls(text, official);
+    return {
+        text: toolCalls.length ? stripToolXml(text) : text,
+        thought: "",
+        toolCalls,
+        nativeTools: opts.nativeTools && official.length > 0,
+        data,
+    };
+}
+
 export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: string; thought: string; }> {
     const acc = { text: "", thought: "", raw: "" };
     const turns = userAssistantTurns(opts.messages);
     const style = opts.style === "anthropic" ? "anthropic" : "openai";
     const maxTokens = clampMaxTokens(opts.maxTokens) ?? customMaxTokens(opts.kind);
     const thinking = wantsThinking(opts.kind);
+    const budget = opts.tools ?? null;
+    const system = budget ? `${opts.system} ${xmlToolInstructions(budget)}` : opts.system;
+
+    if (budget) {
+        const spend: WebToolSpend = { search: 0, fetch: 0 };
+        if (style === "anthropic") {
+            const url = anthropicMessagesUrl(opts.baseUrl);
+            const messages: Record<string, unknown>[] = turns.map(turn => ({ role: turn.role, content: turn.content }));
+            let nativeTools = true;
+            for (let round = 0; round < budget.maxRounds; round++) {
+                const done = await completeAnthropic({
+                    url,
+                    apiKey: opts.apiKey,
+                    model: opts.model,
+                    system,
+                    messages,
+                    maxTokens,
+                    tools: budget,
+                    nativeTools,
+                    signal: opts.signal,
+                });
+                nativeTools = done.nativeTools || nativeTools && Boolean(done.toolCalls.length && done.nativeTools);
+                if (!done.toolCalls.length) {
+                    acc.raw = done.text;
+                    return finishCustom(acc, opts.onText, opts.onThought);
+                }
+                const results = await runToolRound(done.toolCalls, budget, spend, opts.signal, opts.onTool);
+                if (done.nativeTools) {
+                    messages.push({ role: "assistant", content: done.data.content ?? done.text });
+                    messages.push({
+                        role: "user",
+                        content: results.map(item => ({
+                            type: "tool_result",
+                            tool_use_id: item.call.id,
+                            content: item.result,
+                        })),
+                    });
+                } else {
+                    messages.push({ role: "assistant", content: done.text || `<tool_call>${done.toolCalls[0].name}</tool_call>` });
+                    messages.push({
+                        role: "user",
+                        content: results.map(item => `TOOL RESULT (${item.call.name}):\n${item.result}`).join("\n\n"),
+                    });
+                }
+            }
+            acc.raw = "Tool budget reached. Try a shorter question, or raise max tokens.";
+            return finishCustom(acc, opts.onText, opts.onThought);
+        }
+
+        const url = openaiChatUrl(opts.baseUrl);
+        const messages: Record<string, unknown>[] = [
+            { role: "system", content: system },
+            ...turns.map(turn => ({ role: turn.role, content: turn.content })),
+        ];
+        let nativeTools = true;
+        for (let round = 0; round < budget.maxRounds; round++) {
+            const done = await completeOpenAi({
+                url,
+                apiKey: opts.apiKey,
+                model: opts.model,
+                messages,
+                maxTokens,
+                thinking,
+                tools: budget,
+                nativeTools,
+                signal: opts.signal,
+            });
+            if (done.toolCalls.length && !done.nativeTools)
+                nativeTools = false;
+            if (!done.toolCalls.length) {
+                acc.raw = done.text;
+                return finishCustom(acc, opts.onText, opts.onThought);
+            }
+            const results = await runToolRound(done.toolCalls, budget, spend, opts.signal, opts.onTool);
+            if (done.nativeTools) {
+                messages.push({
+                    role: "assistant",
+                    content: done.text || null,
+                    tool_calls: done.toolCalls.map(call => ({
+                        id: call.id,
+                        type: "function",
+                        function: { name: call.name, arguments: JSON.stringify(call.args) },
+                    })),
+                });
+                for (const item of results) {
+                    messages.push({
+                        role: "tool",
+                        tool_call_id: item.call.id,
+                        content: item.result,
+                    });
+                }
+            } else {
+                messages.push({ role: "assistant", content: done.text || `<tool_call>${JSON.stringify({ name: done.toolCalls[0].name, arguments: done.toolCalls[0].args })}</tool_call>` });
+                messages.push({
+                    role: "user",
+                    content: results.map(item => `TOOL RESULT (${item.call.name}):\n${item.result}`).join("\n\n") + "\n\nNow write the complete answer. Do not call a tool unless you still need one.",
+                });
+            }
+        }
+        acc.raw = "Tool budget reached. Try a shorter question, or raise max tokens.";
+        return finishCustom(acc, opts.onText, opts.onThought);
+    }
 
     if (style === "anthropic") {
         const url = anthropicMessagesUrl(opts.baseUrl);
         const res = await postJson(url, anthropicHeaders(opts.apiKey), {
             model: opts.model,
             max_tokens: maxTokens,
-            system: opts.system,
+            system,
             messages: turns.map(turn => ({ role: turn.role, content: turn.content })),
             stream: true,
         }, opts.signal);
@@ -369,7 +645,7 @@ export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: strin
 
     const url = openaiChatUrl(opts.baseUrl);
     const messages = [
-        { role: "system", content: opts.system },
+        { role: "system", content: system },
         ...turns.map(turn => ({ role: turn.role, content: turn.content })),
     ];
     const richBody = {

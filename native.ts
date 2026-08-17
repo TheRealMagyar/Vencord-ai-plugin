@@ -12,6 +12,7 @@ import { join } from "path";
 import { promisify } from "util";
 
 import { customMaxTokens, probeCustomEndpoint, runCustomChat } from "./customApi";
+import { webToolBudget } from "./webTools";
 import { nativeT } from "./nativeI18n";
 import type { AiProvider, ChatProgress, ChatRequest, ChatToolStep, ExplainRequest, FactCheckDepth, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
 
@@ -356,7 +357,6 @@ function factCheckDepthOf(request: ChatRequest): FactCheckDepth {
 }
 
 function wantsWebTools(request: ChatRequest) {
-    if (request.provider === "custom") return false;
     return request.kind === "factcheck" || Boolean(request.allowWebSearch);
 }
 
@@ -380,7 +380,13 @@ function timeoutMsFor(request: ChatRequest) {
         if (request.kind === "draft") return 45_000;
         if (request.kind === "explain") return 60_000;
         if (request.kind === "summarize") return 90_000;
-        if (request.kind === "factcheck") return 90_000;
+        if (request.kind === "factcheck") {
+            const depth = factCheckDepthOf(request);
+            if (depth === "quick") return 90_000;
+            if (depth === "deep") return 210_000;
+            return 150_000;
+        }
+        if (request.allowWebSearch) return 150_000;
         return 120_000;
     }
     if (request.kind === "factcheck") {
@@ -434,7 +440,9 @@ function extraRulesFor(request: ChatRequest) {
 
     if (wantsWebTools(request) && request.kind !== "factcheck") {
         parts.push(
-            "You have web_search. Use it when current facts, dates, quotes, or news matter.",
+            request.provider === "custom"
+                ? "You have web_search and web_fetch. The plugin runs them. Use them when current facts, dates, quotes, or news matter."
+                : "You have web_search. Use it when current facts, dates, quotes, or news matter.",
             "After tool results arrive, write the complete answer in the same session.",
             "Never stop after announcing that you will look something up.",
         );
@@ -1277,6 +1285,9 @@ async function runCustomPrompt(request: ChatRequest, progress: ChatProgress): Pr
             messages: customTurns(request),
             kind: request.kind,
             maxTokens: request.maxTokens ?? customMaxTokens(request.kind),
+            tools: request.provider === "custom"
+                ? webToolBudget(request.kind, factCheckDepthOf(request), request.allowWebSearch)
+                : null,
             signal: abort.signal,
             onText: text => {
                 progress.text = text;
@@ -1284,6 +1295,7 @@ async function runCustomPrompt(request: ChatRequest, progress: ChatProgress): Pr
             onThought: thought => {
                 progress.thought = clipThought(thought);
             },
+            onTool: step => upsertTool(progress, step),
         });
         const text = result.text.trim();
         if (!text)

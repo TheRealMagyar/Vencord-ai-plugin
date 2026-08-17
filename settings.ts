@@ -119,8 +119,8 @@ export const settings = definePluginSettings({
     },
     allowWebSearch: {
         type: OptionType.BOOLEAN,
-        description: "Allow web search (Grok)",
-        hidden() { return this.store.provider !== "grok"; },
+        description: "Allow web search in normal chat (Grok CLI, or Custom via plugin tools). Fact-check always searches.",
+        hidden() { return this.store.provider !== "grok" && this.store.provider !== "custom"; },
         default: false,
     },
     showThinking: {

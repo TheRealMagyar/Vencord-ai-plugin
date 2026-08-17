@@ -31,6 +31,7 @@ This is a **userplugin** ([install](#install), [folder layout](#equicord-layout)
 | Context | Optional nearby Discord transcript (`>>>` marks the target message) |
 | Commands | `/ai` (optional question), `/aiupdate` |
 | Providers | Grok CLI, Codex CLI, or a custom OpenAI / Anthropic HTTP endpoint |
+| Custom web tools | `web_search` + `web_fetch` for fact-check and (optional) chat |
 | Models | Grok 4.6 / 4.5, GPT-5.6 Sol–Luna / 5.5 / 5.4 / 5.4-Mini, or any name your local server exposes |
 | Language | English (default), Magyar, Deutsch, Español |
 | Icon | Default, Grok, OpenAI, Atom, or a custom SVG (`currentColor`) |
@@ -121,7 +122,7 @@ The plugin connects to the Grok / Codex CLI or your custom endpoint **in the bac
 
 ## Fact-check
 
-Fact-check always uses web search on Grok. Depth is a setting:
+Fact-check uses web search on **Grok** and on **Custom** (plugin `web_search` / `web_fetch`). Codex has no live search. Depth is a setting:
 
 | Depth | What it does | Time limit |
 | --- | --- | --- |
@@ -150,8 +151,8 @@ If **Include channel context** is on, nearby messages are attached (the target i
 | Custom model | Whatever the server expects (`llama3.2`, `claude-sonnet-4-5`, …) |
 | Custom API key | Optional. Leave empty for most local servers. Stored in Equicord settings, never logged |
 | Custom max tokens | Slider 256–8192 (default 1024). Caps each custom reply. Lower is faster and less likely to loop |
-| Allow web search | Grok only, for **normal chat** (fact-check has its own search) |
-| Show thinking | Live thinking + tool use (Grok and Codex) |
+| Allow web search | Grok and Custom, for **normal chat**. Fact-check always searches. Custom uses plugin tools (DuckDuckGo + page fetch), not the model’s own browser |
+| Show thinking | Live thinking + tool use (Grok, Codex, and Custom tools) |
 | Fact-check depth | Quick, Balanced (default), or Deep |
 | Include channel context | Attach Discord history for summaries, explain, fact-check, and draft reply |
 | Grok / Codex path | Optional override if auto-detect fails |
@@ -232,7 +233,9 @@ Examples:
 | OpenAI API | OpenAI | `https://api.openai.com/v1` | `gpt-4.1-mini` |
 | Anthropic API | Anthropic | `https://api.anthropic.com` | `claude-sonnet-4-5` |
 
-Chat history is sent as a message list (there is no CLI session). Fact-check on a custom provider uses the model’s knowledge only — no Grok web search.
+Chat history is sent as a message list (there is no CLI session).
+
+Custom models can **search and read the web** through plugin tools (`web_search`, `web_fetch`). Fact-check always uses them. Normal chat uses them when **Allow web search** is on. Search goes through DuckDuckGo (Wikipedia as fallback); `web_fetch` only opens public `http(s)` pages (no localhost / private IPs). The tools run in Electron’s main process.
 
 The plugin talks to the endpoint from Electron’s main process, so Discord’s page CORS does not apply.
 
@@ -436,7 +439,7 @@ The in-plugin updater looks for `aiPlugin`, `aiPlugin.desktop`, `AI-Plugin`, and
 `native.ts` runs in Electron’s main process:
 
 1. **Grok / Codex** — resolves the CLI from the setting, the default install path, then `PATH`. Reads local login metadata from `auth.json`. Access tokens are never sent to the renderer. Runs a headless turn in an isolated temp directory (`grok --prompt-file` or `codex exec --json`), with file / shell tools disabled. Sessions resume per channel and per provider (`--resume` / `codex exec resume`).
-2. **Custom** — `POST`s to your OpenAI-compatible `/v1/chat/completions` or Anthropic-compatible `/v1/messages` URL. Optional API key stays in Equicord settings. Chat history is sent as a message list. **Stop** aborts the HTTP request.
+2. **Custom** — `POST`s to your OpenAI-compatible `/v1/chat/completions` or Anthropic-compatible `/v1/messages` URL. Optional API key stays in Equicord settings. Chat history is sent as a message list. **Stop** aborts the HTTP request. When search is allowed, the plugin runs `web_search` / `web_fetch` (DuckDuckGo + public page text) and feeds the results back to the model.
 
 Status is cached after a background probe on Discord start (and refreshed about every 5 minutes).
 
@@ -449,6 +452,7 @@ Status is cached after a background probe on Discord start (and refreshed about 
 | `could not create leading directories of '$env:USERPROFILE\…'` | You ran a PowerShell path in **cmd**. Fix: `venpm config set vencord.path %USERPROFILE%\Equicord` |
 | CLI not installed | Install Grok or Codex, then restart Discord |
 | Custom endpoint unreachable | Start Ollama / LM Studio / your server, check the base URL, then reopen settings |
+| Custom search returns nothing | DuckDuckGo may be blocked on your network. Retry, or use Deep fact-check after a result appears |
 | No active subscription | `grok login` or `codex login` |
 | Plugin missing from Settings | Folder must be `src/userplugins/aiPlugin` (camelCase) with `index.tsx`. Rebuild (`pnpm build`) and fully restart Discord. See [Equicord troubleshooting](https://docs.equicord.org/plugins). |
 | No chat-bar button | Enable **AI-Plugin**; turn on Chat Input Button API; rebuild; restart Discord |
