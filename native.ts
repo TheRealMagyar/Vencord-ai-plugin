@@ -1298,9 +1298,12 @@ async function runCustomPrompt(request: ChatRequest, progress: ChatProgress): Pr
             onTool: step => upsertTool(progress, step),
         });
         const text = result.text.trim();
+        const thought = result.thought || progress.thought || "";
+        if (!text && thought.trim())
+            return { ok: true, text: thought.trim(), sessionId: null, error: null, thought };
         if (!text)
-            return { ok: false, text: "", sessionId: null, error: nativeT(request.language, "customEmpty"), thought: progress.thought || undefined };
-        return { ok: true, text, sessionId: null, error: null, thought: progress.thought || undefined };
+            return { ok: false, text: "", sessionId: null, error: nativeT(request.language, "customEmpty"), thought: thought || undefined };
+        return { ok: true, text, sessionId: null, error: null, thought: thought || undefined };
     } catch (error) {
         const aborted = abort.signal.aborted || (error instanceof Error && error.name === "AbortError");
         const partial = progress.text.trim();

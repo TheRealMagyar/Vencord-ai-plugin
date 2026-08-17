@@ -316,22 +316,57 @@ function openAiMessage(data: Record<string, unknown>) {
     return null;
 }
 
+function contentToString(value: unknown): string {
+    if (typeof value === "string") return value;
+    if (!Array.isArray(value)) return "";
+    const parts: string[] = [];
+    for (const item of value) {
+        if (typeof item === "string") {
+            parts.push(item);
+            continue;
+        }
+        if (!item || typeof item !== "object") continue;
+        const rec = item as Record<string, unknown>;
+        const type = typeof rec.type === "string" ? rec.type : "";
+        if (type === "thinking" || type === "reasoning") continue;
+        if (typeof rec.text === "string") parts.push(rec.text);
+        else if (typeof rec.content === "string") parts.push(rec.content);
+    }
+    return parts.join("");
+}
+
+function thoughtFromMessage(message: Record<string, unknown> | null) {
+    if (!message) return "";
+    return contentToString(message.reasoning_content)
+        || contentToString(message.reasoning)
+        || contentToString(message.thinking)
+        || "";
+}
+
 function textFromOpenAiJson(data: Record<string, unknown>) {
     const message = openAiMessage(data);
     if (message) {
-        const content = asText(message.content) || asText(message.text);
-        if (content) return content;
+        const content = contentToString(message.content) || contentToString(message.text);
+        if (content.trim()) return content;
     }
     const choices = data.choices;
     if (Array.isArray(choices)) {
         for (const choice of choices) {
             if (!choice || typeof choice !== "object") continue;
             const rec = choice as Record<string, unknown>;
-            const content = asText(rec.text);
-            if (content) return content;
+            const content = contentToString(rec.text);
+            if (content.trim()) return content;
         }
     }
-    return asText(data.content) || asText(data.output_text);
+    return contentToString(data.content) || contentToString(data.output_text);
+}
+
+function answerFromReasoning(thought: string) {
+    const trimmed = thought.trim();
+    if (!trimmed) return "";
+    const paras = trimmed.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const last = paras.at(-1) || trimmed;
+    return last.length >= 8 ? last : trimmed;
 }
 
 function textFromAnthropicJson(data: Record<string, unknown>) {
@@ -364,6 +399,9 @@ function finishCustom(acc: { text: string; thought: string; raw: string; }, onTe
     publishCustom(acc, onText, onThought);
     acc.text = acc.text.trim();
     acc.thought = acc.thought.trim();
+    if (!acc.text && acc.thought)
+        acc.text = answerFromReasoning(acc.thought);
+    onText(acc.text);
     return { text: acc.text, thought: acc.thought };
 }
 
@@ -457,11 +495,12 @@ async function completeOpenAi(opts: {
     const data = await res.json() as Record<string, unknown>;
     const message = openAiMessage(data);
     const text = textFromOpenAiJson(data);
+    const thought = thoughtFromMessage(message);
     const official = parseOpenAiToolCalls(message ?? undefined);
     const toolCalls = collectToolCalls(text, official);
     return {
         text: toolCalls.length ? stripToolXml(text) : text,
-        thought: "",
+        thought,
         toolCalls,
         nativeTools: opts.nativeTools && official.length > 0,
     };
@@ -539,6 +578,7 @@ export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: strin
                 nativeTools = done.nativeTools || nativeTools && Boolean(done.toolCalls.length && done.nativeTools);
                 if (!done.toolCalls.length) {
                     acc.raw = done.text;
+                    acc.thought = done.thought || acc.thought;
                     return finishCustom(acc, opts.onText, opts.onThought);
                 }
                 const results = await runToolRound(done.toolCalls, budget, spend, opts.signal, opts.onTool);
@@ -570,24 +610,48 @@ export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: strin
             ...turns.map(turn => ({ role: turn.role, content: turn.content })),
         ];
         let nativeTools = true;
+        let usedTools = false;
         for (let round = 0; round < budget.maxRounds; round++) {
+            const budgetLeft = spend.search < budget.maxSearch || spend.fetch < budget.maxFetch;
+            const allowTools = !usedTools || (round < budget.maxRounds - 1 && budgetLeft);
             const done = await completeOpenAi({
                 url,
                 apiKey: opts.apiKey,
                 model: opts.model,
                 messages,
                 maxTokens,
-                thinking,
-                tools: budget,
-                nativeTools,
+                thinking: usedTools ? false : thinking,
+                tools: allowTools ? budget : null,
+                nativeTools: allowTools ? nativeTools : false,
                 signal: opts.signal,
             });
+            if (done.thought) acc.thought = done.thought;
             if (done.toolCalls.length && !done.nativeTools)
                 nativeTools = false;
             if (!done.toolCalls.length) {
-                acc.raw = done.text;
+                acc.raw = done.text || acc.raw;
+                acc.thought = done.thought || acc.thought;
+                if (!acc.raw.trim() && acc.thought.trim()) {
+                    const forced = await completeOpenAi({
+                        url,
+                        apiKey: opts.apiKey,
+                        model: opts.model,
+                        messages: [
+                            ...messages,
+                            { role: "user", content: "Write the final answer only. No tools. No chain-of-thought." },
+                        ],
+                        maxTokens,
+                        thinking: false,
+                        tools: null,
+                        nativeTools: false,
+                        signal: opts.signal,
+                    });
+                    acc.raw = forced.text;
+                    acc.thought = forced.thought || acc.thought;
+                }
                 return finishCustom(acc, opts.onText, opts.onThought);
             }
+            usedTools = true;
             const results = await runToolRound(done.toolCalls, budget, spend, opts.signal, opts.onTool);
             if (done.nativeTools) {
                 messages.push({
@@ -606,15 +670,19 @@ export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: strin
                         content: item.result,
                     });
                 }
+                messages.push({
+                    role: "user",
+                    content: "Write the complete answer now from the tool results. No more tools.",
+                });
             } else {
                 messages.push({ role: "assistant", content: done.text || `<tool_call>${JSON.stringify({ name: done.toolCalls[0].name, arguments: done.toolCalls[0].args })}</tool_call>` });
                 messages.push({
                     role: "user",
-                    content: results.map(item => `TOOL RESULT (${item.call.name}):\n${item.result}`).join("\n\n") + "\n\nNow write the complete answer. Do not call a tool unless you still need one.",
+                    content: results.map(item => `TOOL RESULT (${item.call.name}):\n${item.result}`).join("\n\n") + "\n\nWrite the complete answer now. No more tools.",
                 });
             }
         }
-        acc.raw = "Tool budget reached. Try a shorter question, or raise max tokens.";
+        acc.raw = acc.raw || "Tool budget reached. Try a shorter question, or raise max tokens.";
         return finishCustom(acc, opts.onText, opts.onThought);
     }
 

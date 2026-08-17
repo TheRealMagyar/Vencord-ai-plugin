@@ -110,12 +110,12 @@ export function xmlToolInstructions(budget: WebToolBudget) {
         budget.fetch ? "web_fetch" : null,
     ].filter(Boolean).join(" and ");
     return [
-        `You have tools: ${names}. Call a tool instead of inventing live facts.`,
-        "If the API does not emit a native tool call, output ONLY this XML, then stop:",
+        `You have optional tools: ${names}. Use them only for live facts, news, quotes, or a page you must read.`,
+        "Do not search for greetings, drafts, or questions you can already answer.",
+        "After tool results arrive, write the complete answer. No more tools unless you still lack a source.",
+        "If native tool calls are unavailable, emit:",
         '<tool_call>{"name":"web_search","arguments":{"query":"..."}}</tool_call>',
         budget.fetch ? '<tool_call>{"name":"web_fetch","arguments":{"url":"https://..."}}</tool_call>' : "",
-        "Do not write the final answer in the same message as a tool call.",
-        "After tool results arrive, write the complete answer.",
     ].filter(Boolean).join(" ");
 }
 
