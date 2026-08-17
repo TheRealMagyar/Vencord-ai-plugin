@@ -75,7 +75,7 @@ Bell next to Direct Messages. Briefing of mention pings, jump links, **Clear all
 
 ### Settings
 
-Provider, model, language, icon, fact-check depth, paths, updates.
+Provider (Grok / Codex / Custom), model, language, icon, custom URL / tokens, fact-check depth, web search, paths, updates.
 
 ![Plugin settings](docs/screenshots/settings.png)
 
@@ -122,13 +122,13 @@ The plugin connects to the Grok / Codex CLI or your custom endpoint **in the bac
 
 ## Fact-check
 
-Fact-check uses web search on **Grok** and on **Custom** (plugin `web_search` / `web_fetch`). Codex has no live search. Depth is a setting:
+Fact-check uses web search on **Grok** (CLI tools) and on **Custom** (plugin `web_search` / `web_fetch`). **Codex** has no live search — it judges from the message and any attached transcript.
 
 | Depth | What it does | Time limit |
 | --- | --- | --- |
 | **Quick** | 1 search, short verdict | 90s |
 | **Balanced** (default) | At most 2 searches, no page fetch | 150s |
-| **Deep** | More searches + read key sources | 240s |
+| **Deep** | More searches + read key sources | 210s (Custom) / 240s (Grok) |
 
 If the limit is hit, any text already written is shown instead of only an error.
 
@@ -220,8 +220,10 @@ Settings → **Provider** → **Custom (local / API)**.
 
 1. **Endpoint type** — OpenAI-compatible (Ollama, LM Studio, vLLM, llama.cpp, OpenAI, OpenRouter) or Anthropic-compatible (Claude, LiteLLM, local Anthropic proxies).
 2. **Base URL** — host and version prefix only is enough. The plugin appends `/chat/completions` or `/messages` if needed.
-3. **Model** — the exact name your server lists (`ollama list`, LM Studio loaded model, etc.).
-4. **API key** — leave empty for most local servers. Required for official OpenAI / Anthropic and most hosted proxies.
+3. **Model** — the exact name your server lists (`ollama list`, LM Studio loaded model, llama.cpp `--alias`, etc.).
+4. **API key** — leave empty for most local servers. Required for official OpenAI / Anthropic and most hosted proxies. Stored in Equicord settings; never logged; sent only to the URL you set.
+5. **Max tokens** — slider 256–8192 (labels `256` / `512` / `1k` / `2k` / `4k` / `8k`). Default **1024**. Applies to chat, draft, summarize, and fact-check. Lower is faster and less likely to loop on small local models.
+6. **Allow web search** — optional for normal chat. Fact-check always searches.
 
 Examples:
 
@@ -229,15 +231,28 @@ Examples:
 | --- | --- | --- | --- |
 | [Ollama](https://ollama.com) | OpenAI | `http://127.0.0.1:11434/v1` | `llama3.2` |
 | [LM Studio](https://lmstudio.ai) | OpenAI | `http://127.0.0.1:1234/v1` | whatever you loaded |
-| llama.cpp server | OpenAI | `http://127.0.0.1:8080/v1` | the served model |
+| [llama.cpp](https://github.com/ggml-org/llama.cpp) `llama-server` | OpenAI | `http://127.0.0.1:8080/v1` or `:8010/v1` | the `--alias` / GGUF name |
 | OpenAI API | OpenAI | `https://api.openai.com/v1` | `gpt-4.1-mini` |
 | Anthropic API | Anthropic | `https://api.anthropic.com` | `claude-sonnet-4-5` |
 
-Chat history is sent as a message list (there is no CLI session).
+Chat history is sent as a message list (there is no CLI session). **Stop** aborts the HTTP request.
 
-Custom models can **search and read the web** through plugin tools (`web_search`, `web_fetch`). Fact-check always uses them. Normal chat uses them when **Allow web search** is on. Search goes through DuckDuckGo (Wikipedia as fallback); `web_fetch` only opens public `http(s)` pages (no localhost / private IPs). The tools run in Electron’s main process.
+Custom models can **search and read the web** through plugin tools (`web_search`, `web_fetch`) in Electron’s main process — Discord page CORS does not apply.
 
-The plugin talks to the endpoint from Electron’s main process, so Discord’s page CORS does not apply.
+| Tool | What it does |
+| --- | --- |
+| `web_search` | DuckDuckGo HTML search; Wikipedia OpenSearch if that returns nothing |
+| `web_fetch` | Downloads a **public** `http(s)` page and returns readable text. Localhost, private IPs, and non-HTTP URLs are blocked |
+
+| Action | Tools |
+| --- | --- |
+| Fact-check · Quick | 1 search |
+| Fact-check · Balanced | up to 2 searches |
+| Fact-check · Deep | searches + page reads |
+| Chat (Allow web search on) | up to 3 searches + 2 fetches |
+| Draft / Explain / Summarize | no web tools |
+
+Thinking in the chat window shows **Searching the web** / **Reading a page** while a tool runs. If the local server does not support OpenAI/Anthropic tool calling, the plugin falls back to a `<tool_call>…</tool_call>` protocol.
 
 ---
 
@@ -453,6 +468,7 @@ Status is cached after a background probe on Discord start (and refreshed about 
 | CLI not installed | Install Grok or Codex, then restart Discord |
 | Custom endpoint unreachable | Start Ollama / LM Studio / your server, check the base URL, then reopen settings |
 | Custom search returns nothing | DuckDuckGo may be blocked on your network. Retry, or use Deep fact-check after a result appears |
+| Custom 401 / rejected key | Set **Custom API key**, or leave it empty for local Ollama / llama.cpp / LM Studio |
 | No active subscription | `grok login` or `codex login` |
 | Plugin missing from Settings | Folder must be `src/userplugins/aiPlugin` (camelCase) with `index.tsx`. Rebuild (`pnpm build`) and fully restart Discord. See [Equicord troubleshooting](https://docs.equicord.org/plugins). |
 | No chat-bar button | Enable **AI-Plugin**; turn on Chat Input Button API; rebuild; restart Discord |
@@ -466,7 +482,7 @@ Status is cached after a background probe on Discord start (and refreshed about 
 | Plugin listed twice | More than one of `aiPlugin`, `AI-Plugin`, `grokAi` exists under `src/userplugins`. Keep `aiPlugin` only |
 | Update cannot find the folder | Plugin must be a git clone named `aiPlugin` (or the older `AI-Plugin` / `grokAi`) under `src/userplugins` |
 
-Desktop and Vesktop only.
+Desktop, Vesktop, and Equibop only. Not Equicord / Vencord Web.
 
 ---
 
@@ -488,6 +504,9 @@ This repo **is** the plugin folder: it already has `index.tsx` (renderer) and `n
 src/userplugins/aiPlugin/
   index.tsx      required entry
   native.ts      desktop CLI (Grok / Codex) and custom HTTP
+  customApi.ts   OpenAI / Anthropic requests + tool loop
+  webTools.ts    web_search / web_fetch (main process)
+  provider.ts    which provider / model / token cap is active
   README.md
   …
 ```
@@ -512,9 +531,9 @@ If Equicord ever accepted it, the copy inside Equicord would live in `src/equico
 | 6 | Not only hide / restyle UI | Adds chat, explain, fact-check, draft reply, channel summarize, and a mention briefing. |
 | 7 | No third-party Discord bots | Does not talk to other bots. |
 | 8 | No selfbots or API abuse | Does not send messages as you. `/ai` uses Vencord `sendBotMessage` (local Clyde-style notice). Channel context reads history the client can already see (`MessageStore` + the same `GET /channels/:id/messages` Discord uses when you scroll up). |
-| 9 | No untrusted third-party APIs (Google / GitHub ok) | Talks to the **local** official [Grok](https://x.ai/cli) or Codex CLI already signed in on the machine. GitHub is only used to update this userplugin. No random HTTP APIs from the renderer. |
-| 10 | No user-supplied API keys | No key field. Login is `grok login` / `codex login` on the user’s PC. Tokens stay in `~/.grok` / `~/.codex` and are never copied into Discord’s renderer. |
-| 11 | No new npm dependencies | No extra packages. Equicord APIs only: Chat Input Button, Message Popover, Commands, Header Bar. |
+| 9 | No untrusted third-party APIs (Google / GitHub ok) | **Grok / Codex** talk only to the local official CLI. **Custom** talks only to the URL you set (Ollama, llama.cpp, OpenAI, Anthropic, …). **Web tools** run in the main process: DuckDuckGo + Wikipedia for search, and `web_fetch` only for public `http(s)` pages you (via the model) asked to read. GitHub is only used to update this userplugin. The renderer never calls those HTTP APIs. |
+| 10 | No user-supplied API keys | **Grok / Codex:** no key field — `grok login` / `codex login`. Tokens stay in `~/.grok` / `~/.codex` and are never copied into the renderer. **Custom:** optional key, only if that endpoint needs one. Stored in Equicord settings, never logged, sent only to the base URL you configured. |
+| 11 | No new npm dependencies | No extra packages. Equicord APIs: Chat Input Button, Message Popover, Commands, Header Bar, Server List. |
 
 ---
 
