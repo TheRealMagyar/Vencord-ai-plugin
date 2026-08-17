@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import type { ChatTurn, CustomApiStyle, GrokStatus } from "./types";
+import type { AiJobKind, ChatTurn, CustomApiStyle, GrokStatus } from "./types";
 import { nativeT } from "./nativeI18n";
 
 export interface CustomChatOpts {
@@ -15,8 +15,24 @@ export interface CustomChatOpts {
     system: string;
     messages: ChatTurn[];
     signal: AbortSignal;
+    kind?: AiJobKind;
+    maxTokens?: number;
     onText: (full: string) => void;
     onThought?: (full: string) => void;
+}
+
+const DEFAULT_STOP = ["<|im_end|>", "<|endoftext|>", "<|eot_id|>", "</s>", "<|end|>"];
+
+export function customMaxTokens(kind?: AiJobKind) {
+    if (kind === "draft") return 400;
+    if (kind === "explain") return 900;
+    if (kind === "summarize") return 1200;
+    if (kind === "factcheck") return 1400;
+    return 2048;
+}
+
+function wantsThinking(kind?: AiJobKind) {
+    return kind !== "draft" && kind !== "explain" && kind !== "summarize";
 }
 
 function asText(value: unknown) {
@@ -127,7 +143,7 @@ function userAssistantTurns(messages: ChatTurn[]) {
     return turns;
 }
 
-async function readSse(res: Response, onEvent: (event: string, data: string) => void) {
+async function readSse(res: Response, onEvent: (event: string, data: string) => "done" | "loop" | void) {
     const body = res.body;
     if (!body) {
         const text = await res.text();
@@ -139,6 +155,14 @@ async function readSse(res: Response, onEvent: (event: string, data: string) => 
     const decoder = new TextDecoder();
     let buf = "";
     let event = "message";
+
+    const stop = async () => {
+        try {
+            await reader.cancel();
+        } catch {
+            // ignore
+        }
+    };
 
     while (true) {
         const { done, value } = await reader.read();
@@ -153,15 +177,65 @@ async function readSse(res: Response, onEvent: (event: string, data: string) => 
                 continue;
             }
             if (line.startsWith("data:")) {
-                onEvent(event, line.slice(5).trim());
+                const verdict = onEvent(event, line.slice(5).trim());
                 event = "message";
+                if (verdict === "loop" || verdict === "done") {
+                    await stop();
+                    return;
+                }
             }
         }
     }
 }
 
-function applyOpenAiDelta(data: string, acc: { text: string; thought: string; }, onText: (full: string) => void, onThought?: (full: string) => void) {
-    if (!data || data === "[DONE]") return;
+function splitThink(raw: string) {
+    const openTag = /<think>/i;
+    const closeTag = /<\/think>/i;
+    const open = raw.search(openTag);
+    if (open < 0) return { text: raw, thought: "" };
+    const afterOpen = raw.slice(open).replace(openTag, "");
+    const close = afterOpen.search(closeTag);
+    if (close < 0)
+        return { text: raw.slice(0, open), thought: afterOpen };
+    return {
+        text: `${raw.slice(0, open)}${afterOpen.slice(close).replace(closeTag, "")}`,
+        thought: afterOpen.slice(0, close),
+    };
+}
+
+function trimRepeatedTail(text: string) {
+    for (const size of [32, 48, 64, 96, 128]) {
+        if (text.length < size * 3) continue;
+        const unit = text.slice(-size);
+        if (!unit.trim()) continue;
+        if (text.slice(-size * 3) !== unit.repeat(3)) continue;
+        let cut = text.length;
+        while (cut >= size && text.slice(cut - size, cut) === unit) cut -= size;
+        return text.slice(0, cut + size);
+    }
+    return text;
+}
+
+function looksLikeLoop(text: string) {
+    return trimRepeatedTail(text) !== text;
+}
+
+function publishCustom(acc: { text: string; thought: string; raw: string; }, onText: (full: string) => void, onThought?: (full: string) => void) {
+    const split = splitThink(acc.raw);
+    acc.text = trimRepeatedTail(split.text);
+    if (split.thought.trim())
+        acc.thought = clipThoughtLocal(split.thought);
+    onText(acc.text);
+    if (acc.thought && onThought) onThought(acc.thought);
+}
+
+function clipThoughtLocal(text: string) {
+    if (text.length <= 6_000) return text;
+    return text.slice(text.length - 6_000);
+}
+
+function applyOpenAiDelta(data: string, acc: { text: string; thought: string; raw: string; }, onText: (full: string) => void, onThought?: (full: string) => void) {
+    if (!data || data === "[DONE]") return "done";
     let parsed: Record<string, unknown>;
     try {
         parsed = JSON.parse(data) as Record<string, unknown>;
@@ -170,25 +244,26 @@ function applyOpenAiDelta(data: string, acc: { text: string; thought: string; },
     }
     const choices = parsed.choices;
     const choice = Array.isArray(choices) ? choices[0] as Record<string, unknown> | undefined : undefined;
-    const delta = (choice?.delta ?? choice?.message ?? parsed.delta) as Record<string, unknown> | undefined;
-    const content = asText(delta?.content) || asText(parsed.content);
-    if (content) {
-        acc.text += typeof delta?.content === "string" ? delta.content : content;
-        onText(acc.text);
-    }
-    const thought = asText(delta?.reasoning_content) || asText(delta?.reasoning) || asText(delta?.thinking);
-    if (thought && onThought) {
-        acc.thought += typeof delta?.reasoning_content === "string"
-            ? String(delta.reasoning_content)
-            : typeof delta?.reasoning === "string"
-                ? String(delta.reasoning)
-                : thought;
-        onThought(acc.thought);
-    }
+    const delta = (choice?.delta ?? parsed.delta) as Record<string, unknown> | undefined;
+    const piece = typeof delta?.content === "string" ? delta.content : "";
+    if (piece) acc.raw += piece;
+
+    const thoughtPiece = typeof delta?.reasoning_content === "string"
+        ? delta.reasoning_content
+        : typeof delta?.reasoning === "string"
+            ? delta.reasoning
+            : typeof delta?.thinking === "string"
+                ? delta.thinking
+                : "";
+    if (thoughtPiece) acc.thought += thoughtPiece;
+
+    if (piece || thoughtPiece) publishCustom(acc, onText, onThought);
+    if (looksLikeLoop(acc.raw) || looksLikeLoop(acc.thought)) return "loop";
+    return;
 }
 
-function applyAnthropicEvent(event: string, data: string, acc: { text: string; thought: string; }, onText: (full: string) => void, onThought?: (full: string) => void) {
-    if (!data || data === "[DONE]") return;
+function applyAnthropicEvent(event: string, data: string, acc: { text: string; thought: string; raw: string; }, onText: (full: string) => void, onThought?: (full: string) => void) {
+    if (!data || data === "[DONE]") return "done";
     let parsed: Record<string, unknown>;
     try {
         parsed = JSON.parse(data) as Record<string, unknown>;
@@ -198,17 +273,14 @@ function applyAnthropicEvent(event: string, data: string, acc: { text: string; t
     const type = asText(parsed.type) || event;
     if (type === "content_block_delta" || type === "message") {
         const delta = parsed.delta as Record<string, unknown> | undefined;
-        const text = asText(delta?.text);
-        if (text) {
-            acc.text += typeof delta?.text === "string" ? delta.text : text;
-            onText(acc.text);
-        }
-        const thought = asText(delta?.thinking) || asText(delta?.partial_json);
-        if (thought && onThought) {
-            acc.thought += typeof delta?.thinking === "string" ? delta.thinking : thought;
-            onThought(acc.thought);
-        }
+        const piece = typeof delta?.text === "string" ? delta.text : "";
+        if (piece) acc.raw += piece;
+        const thoughtPiece = typeof delta?.thinking === "string" ? delta.thinking : "";
+        if (thoughtPiece) acc.thought += thoughtPiece;
+        if (piece || thoughtPiece) publishCustom(acc, onText, onThought);
+        if (looksLikeLoop(acc.raw) || looksLikeLoop(acc.thought)) return "loop";
     }
+    return;
 }
 
 function textFromOpenAiJson(data: Record<string, unknown>) {
@@ -250,16 +322,26 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
     return res;
 }
 
+function finishCustom(acc: { text: string; thought: string; raw: string; }, onText: (full: string) => void, onThought?: (full: string) => void) {
+    if (!acc.raw && acc.text) acc.raw = acc.text;
+    publishCustom(acc, onText, onThought);
+    acc.text = acc.text.trim();
+    acc.thought = acc.thought.trim();
+    return { text: acc.text, thought: acc.thought };
+}
+
 export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: string; thought: string; }> {
-    const acc = { text: "", thought: "" };
+    const acc = { text: "", thought: "", raw: "" };
     const turns = userAssistantTurns(opts.messages);
     const style = opts.style === "anthropic" ? "anthropic" : "openai";
+    const maxTokens = opts.maxTokens ?? customMaxTokens(opts.kind);
+    const thinking = wantsThinking(opts.kind);
 
     if (style === "anthropic") {
         const url = anthropicMessagesUrl(opts.baseUrl);
         const res = await postJson(url, anthropicHeaders(opts.apiKey), {
             model: opts.model,
-            max_tokens: 4096,
+            max_tokens: maxTokens,
             system: opts.system,
             messages: turns.map(turn => ({ role: turn.role, content: turn.content })),
             stream: true,
@@ -272,25 +354,44 @@ export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: strin
         const ct = (res.headers.get("content-type") || "").toLowerCase();
         if (ct.includes("application/json") && !ct.includes("event-stream")) {
             const data = await res.json() as Record<string, unknown>;
-            acc.text = textFromAnthropicJson(data);
-            opts.onText(acc.text);
-            return acc;
+            acc.raw = textFromAnthropicJson(data);
+            return finishCustom(acc, opts.onText, opts.onThought);
         }
 
         await readSse(res, (event, data) => applyAnthropicEvent(event, data, acc, opts.onText, opts.onThought));
-        return acc;
+        return finishCustom(acc, opts.onText, opts.onThought);
     }
 
     const url = openaiChatUrl(opts.baseUrl);
-    const res = await postJson(url, openaiHeaders(opts.apiKey), {
+    const messages = [
+        { role: "system", content: opts.system },
+        ...turns.map(turn => ({ role: turn.role, content: turn.content })),
+    ];
+    const richBody = {
         model: opts.model,
-        messages: [
-            { role: "system", content: opts.system },
-            ...turns.map(turn => ({ role: turn.role, content: turn.content })),
-        ],
+        messages,
         stream: true,
-    }, opts.signal);
+        max_tokens: maxTokens,
+        max_completion_tokens: maxTokens,
+        stop: DEFAULT_STOP,
+        frequency_penalty: 0.4,
+        repeat_penalty: 1.15,
+        chat_template_kwargs: { enable_thinking: thinking },
+        enable_thinking: thinking,
+    };
+    const plainBody = {
+        model: opts.model,
+        messages,
+        stream: true,
+        max_tokens: maxTokens,
+        stop: DEFAULT_STOP,
+    };
 
+    let res = await postJson(url, openaiHeaders(opts.apiKey), richBody, opts.signal);
+    if (!res.ok && res.status === 400) {
+        await res.text().catch(() => "");
+        res = await postJson(url, openaiHeaders(opts.apiKey), plainBody, opts.signal);
+    }
     if (!res.ok) {
         throw new Error(errorFromBody(await res.text().catch(() => ""), res.status));
     }
@@ -298,13 +399,12 @@ export async function runCustomChat(opts: CustomChatOpts): Promise<{ text: strin
     const ct = (res.headers.get("content-type") || "").toLowerCase();
     if (ct.includes("application/json") && !ct.includes("event-stream")) {
         const data = await res.json() as Record<string, unknown>;
-        acc.text = textFromOpenAiJson(data);
-        opts.onText(acc.text);
-        return acc;
+        acc.raw = textFromOpenAiJson(data);
+        return finishCustom(acc, opts.onText, opts.onThought);
     }
 
     await readSse(res, (_event, data) => applyOpenAiDelta(data, acc, opts.onText, opts.onThought));
-    return acc;
+    return finishCustom(acc, opts.onText, opts.onThought);
 }
 
 export async function probeCustomEndpoint(opts: {

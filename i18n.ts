@@ -274,10 +274,10 @@ const dict = {
         es: "Redacta una respuesta a{author}:\n{content}",
     },
     draftPrompt: {
-        en: "Draft a Discord reply the user can send to this message (marked with >>>). Match the chat's language and tone. Output ONLY the reply text — no quotes, no \"here's a draft\", no explanation.\nAuthor: {author}\nChannel: {channel}\nMessage:\n{content}",
-        hu: "Írj egy Discord-választ, amit a felhasználó elküldhet erre az üzenetre (>>>). Illeszkedj a chat nyelvéhez és hangneméhez. CSAK a válasz szövege legyen — sem idézőjel, sem „itt egy piszkozat”, sem magyarázat.\nSzerző: {author}\nCsatorna: {channel}\nÜzenet:\n{content}",
-        de: "Entwirf eine Discord-Antwort, die der Nutzer senden kann (>>>). Sprache und Ton des Chats treffen. NUR den Antworttext ausgeben — keine Anführungszeichen, kein „hier ein Entwurf“, keine Erklärung.\nAutor: {author}\nKanal: {channel}\nNachricht:\n{content}",
-        es: "Redacta una respuesta de Discord que el usuario pueda enviar (>>>). Sigue el idioma y el tono del chat. SOLO el texto de la respuesta — sin comillas, sin \"aquí un borrador\", sin explicación.\nAutor: {author}\nCanal: {channel}\nMensaje:\n{content}",
+        en: "Write one Discord reply to the >>> message. Same language and tone. Output only the reply, then stop.\nAuthor: {author}\nChannel: {channel}\nMessage:\n{content}",
+        hu: "Írj egy Discord-választ a >>> üzenetre. Ugyanaz a nyelv és hangnem. Csak a válasz, aztán állj.\nSzerző: {author}\nCsatorna: {channel}\nÜzenet:\n{content}",
+        de: "Schreib eine Discord-Antwort auf die >>>-Nachricht. Gleiche Sprache und Ton. Nur die Antwort, dann stopp.\nAutor: {author}\nKanal: {channel}\nNachricht:\n{content}",
+        es: "Escribe una respuesta de Discord al mensaje >>>. Mismo idioma y tono. Solo la respuesta, luego para.\nAutor: {author}\nCanal: {channel}\nMensaje:\n{content}",
     },
     notifyDraftReady: {
         en: "Reply draft ready · {title}",

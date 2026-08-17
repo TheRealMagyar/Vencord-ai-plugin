@@ -227,7 +227,7 @@ export function withTranscript(userPrompt: string, packed: PackedContext, kind: 
         : kind === "factcheck"
             ? "Below is nearby Discord chat history. The target message is marked with >>>. Use this context to understand the claim, then fact-check it. Do not invent messages."
             : kind === "draft"
-                ? "Below is nearby Discord chat history. The target message is marked with >>>. Draft a reply the user can send. Match tone and language. Output only the reply text — no quotes, no preamble."
+                ? "Nearby Discord chat. The target is marked >>>. Write one short reply the user can send. Output only that reply, then stop."
                 : kind === "summarize"
                     ? "Below is Discord chat history from this channel/DM. Summarize what happened. Do not invent messages."
                     : "Below is Discord chat history from the current channel/DM. Use it as ground truth when the user asks about this conversation. Do not invent messages that are not listed.";

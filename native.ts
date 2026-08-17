@@ -11,7 +11,7 @@ import { homedir, tmpdir } from "os";
 import { join } from "path";
 import { promisify } from "util";
 
-import { probeCustomEndpoint, runCustomChat } from "./customApi";
+import { customMaxTokens, probeCustomEndpoint, runCustomChat } from "./customApi";
 import { nativeT } from "./nativeI18n";
 import type { AiProvider, ChatProgress, ChatRequest, ChatToolStep, ExplainRequest, FactCheckDepth, GrokReply, GrokStatus, UpdateResult, UpdateStatus } from "./types";
 
@@ -376,6 +376,13 @@ function maxTurnsFor(request: ChatRequest) {
 }
 
 function timeoutMsFor(request: ChatRequest) {
+    if (request.provider === "custom") {
+        if (request.kind === "draft") return 45_000;
+        if (request.kind === "explain") return 60_000;
+        if (request.kind === "summarize") return 90_000;
+        if (request.kind === "factcheck") return 90_000;
+        return 120_000;
+    }
     if (request.kind === "factcheck") {
         const depth = factCheckDepthOf(request);
         if (depth === "quick") return 90_000;
@@ -386,6 +393,17 @@ function timeoutMsFor(request: ChatRequest) {
 }
 
 function extraRulesFor(request: ChatRequest) {
+    if (request.provider === "custom" && request.kind === "draft") {
+        return [
+            "Draft one Discord message the user will send themselves.",
+            "Write only that message. One reply. Stop after it.",
+            "No quotes, no preamble, no options, no analysis, no thinking out loud, no XML tags.",
+            "1–4 short sentences unless the chat is clearly longer-form.",
+            "If a transcript is present, treat it as ground truth. Do not invent messages.",
+            languageRule(request.language),
+        ].join(" ");
+    }
+
     const identity = request.provider === "custom"
         ? "You are an assistant answering from inside Discord through a Vencord plugin."
         : request.provider === "codex"
@@ -1257,6 +1275,8 @@ async function runCustomPrompt(request: ChatRequest, progress: ChatProgress): Pr
             model,
             system: extraRulesFor(request),
             messages: customTurns(request),
+            kind: request.kind,
+            maxTokens: customMaxTokens(request.kind),
             signal: abort.signal,
             onText: text => {
                 progress.text = text;

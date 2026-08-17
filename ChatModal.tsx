@@ -201,7 +201,7 @@ function GrokModal({ rootProps, options }: { rootProps: RenderModalProps; option
                                 : "factCheckPrompt";
                 const contextMax = kind === "factcheck"
                     ? (factCheckDepth === "quick" ? 16 : factCheckDepth === "deep" ? 80 : 32)
-                    : kind === "draft" ? 40 : undefined;
+                    : kind === "draft" ? 16 : undefined;
                 await ask({
                     kind,
                     visible: t(visibleKey, {
