@@ -779,3 +779,12 @@ div:has(> .vc-grokai-nc),
 .vc-grokai-nc-link:hover {
     border-bottom-color: var(--text-link, #00a8fc);
 }
+
+.vc-plugins-setting-section [class*="markValue"] {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.03em;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    word-break: keep-all !important;
+}

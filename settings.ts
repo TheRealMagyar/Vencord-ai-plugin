@@ -7,6 +7,12 @@
 import { definePluginSettings } from "@api/Settings";
 import { OptionType } from "@utils/types";
 
+function formatTokenMark(value: number) {
+    const n = Math.round(value);
+    if (n >= 1024 && n % 1024 === 0) return `${n / 1024}k`;
+    return String(n);
+}
+
 export const settings = definePluginSettings({
     provider: {
         type: OptionType.SELECT,
@@ -106,6 +112,10 @@ export const settings = definePluginSettings({
         default: 1024,
         markers: [256, 512, 1024, 2048, 4096, 8192],
         stickToMarkers: false,
+        componentProps: {
+            onValueRender: formatTokenMark,
+            onMarkerRender: formatTokenMark,
+        },
     },
     allowWebSearch: {
         type: OptionType.BOOLEAN,
